@@ -1,4 +1,14 @@
-import { Message, MessageState, RegisterWebHookRequest, WebHook } from "./domain";
+import {
+    Message,
+    MessageState,
+    RegisterWebHookRequest,
+    WebHook,
+    Device,
+    DeviceSettings,
+    HealthResponse,
+    LogEntry,
+    MessagesExportRequest
+} from "./domain";
 import { HttpClient } from "./http";
 
 export const BASE_URL = "https://api.sms-gate.app/3rdparty/v1";
@@ -17,14 +27,25 @@ export class Client {
         }
     }
 
-    async send(request: Message): Promise<MessageState> {
-        const url = `${this.baseUrl}/message`;
+    /**
+     * Sends a new message to the API
+     * @param request - The message to send
+     * @param options - Optional parameters
+     * @param options.skipPhoneValidation - Whether to skip phone number validation
+     * @returns The state of the message after sending
+     */
+    async send(request: Message, options?: { skipPhoneValidation?: boolean }): Promise<MessageState> {
+        const url = new URL(`${this.baseUrl}/message`);
+        if (options?.skipPhoneValidation !== undefined) {
+            url.searchParams.append('skipPhoneValidation', options.skipPhoneValidation.toString());
+        }
+
         const headers = {
             "Content-Type": "application/json",
             ...this.defaultHeaders,
         };
 
-        return this.httpClient.post<MessageState>(url, request, headers);
+        return this.httpClient.post<MessageState>(url.toString(), request, headers);
     }
 
     async getState(messageId: string): Promise<MessageState> {
@@ -62,5 +83,123 @@ export class Client {
         };
 
         return this.httpClient.delete<void>(url, headers);
+    }
+
+    /**
+     * Get a list of registered devices
+     */
+    async getDevices(): Promise<Device[]> {
+        const url = `${this.baseUrl}/devices`;
+        const headers = {
+            ...this.defaultHeaders,
+        };
+
+        return this.httpClient.get<Device[]>(url, headers);
+    }
+
+    /**
+     * Remove a device by ID
+     * @param deviceId - The ID of the device to remove
+     */
+    async deleteDevice(deviceId: string): Promise<void> {
+        const url = `${this.baseUrl}/devices/${deviceId}`;
+        const headers = {
+            ...this.defaultHeaders,
+        };
+
+        return this.httpClient.delete<void>(url, headers);
+    }
+
+    /**
+     * Check if the service is healthy
+     */
+    async getHealth(): Promise<HealthResponse> {
+        const url = `${this.baseUrl}/health`;
+        const headers = {
+            ...this.defaultHeaders,
+        };
+
+        return this.httpClient.get<HealthResponse>(url, headers);
+    }
+
+    /**
+     * Request inbox messages export
+     * @param request - The export request parameters
+     */
+    async exportInbox(request: MessagesExportRequest): Promise<void> {
+        const url = `${this.baseUrl}/inbox/export`;
+        const headers = {
+            "Content-Type": "application/json",
+            ...this.defaultHeaders,
+        };
+
+        const exportRequest = {
+            deviceId: request.deviceId,
+            since: request.since.toISOString(),
+            until: request.until.toISOString(),
+        };
+
+        return this.httpClient.post<void>(url, exportRequest, headers);
+    }
+
+    /**
+     * Get logs within a specified time range
+     * @param from - The start of the time range (optional)
+     * @param to - The end of the time range (optional)
+     */
+    async getLogs(from?: Date, to?: Date): Promise<LogEntry[]> {
+        const url = new URL(`${this.baseUrl}/logs`);
+        if (from) {
+            url.searchParams.append('from', from.toISOString());
+        }
+        if (to) {
+            url.searchParams.append('to', to.toISOString());
+        }
+
+        const headers = {
+            ...this.defaultHeaders,
+        };
+
+        return this.httpClient.get<LogEntry[]>(url.toString(), headers);
+    }
+
+    /**
+     * Get settings for the user
+     */
+    async getSettings(): Promise<DeviceSettings> {
+        const url = `${this.baseUrl}/settings`;
+        const headers = {
+            ...this.defaultHeaders,
+        };
+
+        return this.httpClient.get<DeviceSettings>(url, headers);
+    }
+
+    /**
+     * Update settings for the user
+     * @param settings - The new settings to apply
+     */
+    async updateSettings(settings: DeviceSettings): Promise<void> {
+        const url = `${this.baseUrl}/settings`;
+        const headers = {
+            "Content-Type": "application/json",
+            ...this.defaultHeaders,
+        };
+
+        return this.httpClient.put<void>(url, settings, headers);
+    }
+
+    /**
+     * Partially update settings for the user
+     * @param settings - The partial settings to update
+     */
+    async patchSettings(settings: Partial<DeviceSettings>): Promise<void> {
+        const url = `${this.baseUrl}/settings`;
+        const headers = {
+            "Content-Type": "application/json",
+            ...this.defaultHeaders,
+        };
+
+        return this.httpClient.patch<void>(url, settings, headers);
     }
 }
