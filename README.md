@@ -20,6 +20,11 @@ A TypeScript-first client for seamless integration with the [SMS Gateway for And
   - [🚀 Quickstart](#-quickstart)
     - [Basic Usage](#basic-usage)
     - [Webhook Management](#webhook-management)
+    - [Device Management](#device-management)
+    - [Health Check](#health-check)
+    - [Inbox Export](#inbox-export)
+    - [Log Retrieval](#log-retrieval)
+    - [Settings Management](#settings-management)
   - [🤖 Client Guide](#-client-guide)
     - [Client Configuration](#client-configuration)
     - [Core Methods](#core-methods)
@@ -36,8 +41,14 @@ A TypeScript-first client for seamless integration with the [SMS Gateway for And
 - **Flexible HTTP Clients**: Works with any HTTP library (fetch, axios, node-fetch, etc.)
 - **Promise-based API**: Async/await ready
 - **Webhook Management**: Create, read, and delete webhooks
+- **Device Management**: List and remove devices
+- **Health Check**: Monitor system status
+- **Inbox Export**: Export received messages
+- **Log Retrieval**: Get system logs with time filtering
+- **Settings Management**: Get, update, and partially update settings
 - **Customizable Base URL**: Point to different API endpoints
 - **Server-Side Focus**: Designed for Node.js environments
+- **Native Date Support**: Use JavaScript Date objects for date parameters
 
 ## ⚙️ Requirements
 - Node.js v18+
@@ -105,7 +116,7 @@ async function sendSMS() {
     try {
         const state = await api.send(message);
         console.log('Message ID:', state.id);
-        
+
         // Check status after 5 seconds
         setTimeout(async () => {
             const updatedState = await api.getState(state.id);
@@ -116,7 +127,18 @@ async function sendSMS() {
     }
 }
 
+// Send message with skipPhoneValidation
+async function sendSMSWithSkipValidation() {
+    try {
+        const state = await api.send(message, { skipPhoneValidation: true });
+        console.log('Message ID (with skip validation):', state.id);
+    } catch (error) {
+        console.error('Sending failed:', error);
+    }
+}
+
 sendSMS();
+sendSMSWithSkipValidation();
 ```
 
 ### Webhook Management
@@ -136,6 +158,79 @@ api.getWebhooks()
     .then(webhooks => console.log('Active webhooks:', webhooks.length));
 ```
 
+### Device Management
+```typescript
+// List devices
+api.getDevices()
+    .then(devices => console.log('Devices:', devices.map(d => d.name)))
+    .catch(console.error);
+
+// Remove a device
+api.deleteDevice('device-id')
+    .then(() => console.log('Device removed'))
+    .catch(console.error);
+```
+
+### Health Check
+```typescript
+// Check system health
+api.getHealth()
+    .then(health => {
+        console.log('System status:', health.status);
+        console.log('Checks:', Object.keys(health.checks).length);
+    })
+    .catch(console.error);
+```
+
+### Inbox Export
+```typescript
+// Export inbox messages
+const since = new Date('2024-01-01T00:00:00Z');
+const until = new Date('2024-01-02T00:00:00Z');
+
+api.exportInbox({ deviceId: 'device-id', since, until })
+    .then(() => console.log('Inbox export requested'))
+    .catch(console.error);
+```
+
+### Log Retrieval
+```typescript
+// Get logs
+const from = new Date('2024-01-01T00:00:00Z');
+const to = new Date('2024-01-02T00:00:00Z');
+
+api.getLogs(from, to)
+    .then(logs => console.log('Logs retrieved:', logs.length))
+    .catch(console.error);
+```
+
+### Settings Management
+```typescript
+// Get settings
+api.getSettings()
+    .then(settings => console.log('Settings:', settings))
+    .catch(console.error);
+
+// Update settings
+const newSettings = {
+    messages: { limitPeriod: 'PerDay', limitValue: 100 },
+    webhooks: { internetRequired: true, retryCount: 3 },
+};
+
+api.updateSettings(newSettings)
+    .then(() => console.log('Settings updated'))
+    .catch(console.error);
+
+// Partially update settings
+const partialSettings = {
+    messages: { limitValue: 200 },
+};
+
+api.patchSettings(partialSettings)
+    .then(() => console.log('Settings partially updated'))
+    .catch(console.error);
+```
+
 ## 🤖 Client Guide
 
 ### Client Configuration
@@ -150,13 +245,35 @@ The `Client` class accepts the following constructor arguments:
 | `baseUrl`    | API base URL               | `"https://api.sms-gate.app/3rdparty/v1"` |
 
 ### Core Methods
-| Method                                             | Description              | Returns                 |
-| -------------------------------------------------- | ------------------------ | ----------------------- |
-| `send(message: Message)`                           | Send SMS message         | `Promise<MessageState>` |
-| `getState(messageId: string)`                      | Check message status     | `Promise<MessageState>` |
-| `getWebhooks()`                                    | List registered webhooks | `Promise<WebHook[]>`    |
-| `registerWebhook(request: RegisterWebHookRequest)` | Register new webhook     | `Promise<WebHook>`      |
-| `deleteWebhook(webhookId: string)`                 | Remove webhook           | `Promise<void>`         |
+
+| Method                                                                | Description                   | Returns                   |
+| --------------------------------------------------------------------- | ----------------------------- | ------------------------- |
+| **Messages**                                                          |                               |                           |
+| `send(message: Message, options?: { skipPhoneValidation?: boolean })` | Send SMS message              | `Promise<MessageState>`   |
+| `getState(messageId: string)`                                         | Check message status          | `Promise<MessageState>`   |
+|                                                                       |                               |                           |
+| **Webhooks**                                                          |                               |                           |
+| `getWebhooks()`                                                       | List registered webhooks      | `Promise<WebHook[]>`      |
+| `registerWebhook(request: RegisterWebHookRequest)`                    | Register new webhook          | `Promise<WebHook>`        |
+| `deleteWebhook(webhookId: string)`                                    | Remove webhook                | `Promise<void>`           |
+|                                                                       |                               |                           |
+| **Devices**                                                           |                               |                           |
+| `getDevices()`                                                        | List registered devices       | `Promise<Device[]>`       |
+| `deleteDevice(deviceId: string)`                                      | Remove device                 | `Promise<void>`           |
+|                                                                       |                               |                           |
+| **Health**                                                            |                               |                           |
+| `getHealth()`                                                         | Check system health           | `Promise<HealthResponse>` |
+|                                                                       |                               |                           |
+| **Inbox**                                                             |                               |                           |
+| `exportInbox(request: MessagesExportRequest)`                         | Request inbox messages export | `Promise<void>`           |
+|                                                                       |                               |                           |
+| **Logs**                                                              |                               |                           |
+| `getLogs(from?: Date, to?: Date)`                                     | Get logs within time range    | `Promise<LogEntry[]>`     |
+|                                                                       |                               |                           |
+| **Settings**                                                          |                               |                           |
+| `getSettings()`                                                       | Get settings                  | `Promise<DeviceSettings>` |
+| `updateSettings(settings: DeviceSettings)`                            | Update settings               | `Promise<void>`           |
+| `patchSettings(settings: Partial<DeviceSettings>)`                    | Partially update settings     | `Promise<void>`           |
 
 ### Type Definitions
 ```typescript
@@ -179,6 +296,47 @@ interface WebHook {
     id: string;
     event: WebHookEventType;
     url: string;
+    deviceId: string;
+}
+
+interface Device {
+    id: string;
+    name: string;
+    createdAt: string;
+    lastSeen: string;
+    updatedAt: string;
+    deletedAt?: string | null;
+}
+
+interface DeviceSettings {
+    messages?: SettingsMessages;
+    webhooks?: SettingsWebhooks;
+    gateway?: SettingsGateway;
+    encryption?: SettingsEncryption;
+    logs?: SettingsLogs;
+    ping?: SettingsPing;
+}
+
+interface HealthResponse {
+    status: HealthStatus;
+    version: string;
+    releaseId: number;
+    checks: { [checkName: string]: HealthCheck };
+}
+
+interface LogEntry {
+    id: number;
+    createdAt: string;
+    module: string;
+    priority: LogEntryPriority;
+    message: string;
+    context?: Record<string, string>;
+}
+
+interface MessagesExportRequest {
+    deviceId: string;
+    since: string;
+    until: string;
 }
 ```
 
@@ -192,6 +350,8 @@ The library doesn't come with built-in HTTP clients. Instead, you should provide
 interface HttpClient {
     get<T>(url: string, headers?: Record<string, string>): Promise<T>;
     post<T>(url: string, body: any, headers?: Record<string, string>): Promise<T>;
+    put<T>(url: string, body: any, headers?: Record<string, string>): Promise<T>;
+    patch<T>(url: string, body: any, headers?: Record<string, string>): Promise<T>;
     delete<T>(url: string, headers?: Record<string, string>): Promise<T>;
 }
 ```
