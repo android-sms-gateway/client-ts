@@ -18,6 +18,12 @@ export class Client {
     private httpClient: HttpClient;
     private defaultHeaders: Record<string, string>;
 
+    /**
+     * @param login The login to use for authentication
+     * @param password The password to use for authentication
+     * @param httpClient The HTTP client to use for requests
+     * @param baseUrl The base URL to use for requests. Defaults to {@link BASE_URL}.
+     */
     constructor(login: string, password: string, httpClient: HttpClient, baseUrl = BASE_URL) {
         this.baseUrl = baseUrl;
         this.httpClient = httpClient;
@@ -48,6 +54,11 @@ export class Client {
         return this.httpClient.post<MessageState>(url.toString(), request, headers);
     }
 
+    /**
+     * Retrieves the state of an SMS message from the API
+     * @param messageId - The ID of the message to retrieve the state for
+     * @returns The state of the message
+     */
     async getState(messageId: string): Promise<MessageState> {
         const url = `${this.baseUrl}/message/${messageId}`;
         const headers = {
@@ -57,6 +68,10 @@ export class Client {
         return this.httpClient.get<MessageState>(url, headers);
     }
 
+    /**
+     * Retrieves a list of registered webhooks from the API
+     * @returns An array of webhooks
+     */
     async getWebhooks(): Promise<WebHook[]> {
         const url = `${this.baseUrl}/webhooks`;
         const headers = {
@@ -66,6 +81,11 @@ export class Client {
         return this.httpClient.get<WebHook[]>(url, headers);
     }
 
+    /**
+     * Registers a new webhook
+     * @param request - The webhook to register
+     * @returns The registered webhook
+     */
     async registerWebhook(request: RegisterWebHookRequest): Promise<WebHook> {
         const url = `${this.baseUrl}/webhooks`;
         const headers = {
@@ -76,6 +96,10 @@ export class Client {
         return this.httpClient.post<WebHook>(url, request, headers);
     }
 
+    /**
+     * Removes a webhook by its ID
+     * @param webhookId - The ID of the webhook to remove
+     */
     async deleteWebhook(webhookId: string): Promise<void> {
         const url = `${this.baseUrl}/webhooks/${webhookId}`;
         const headers = {
@@ -87,6 +111,7 @@ export class Client {
 
     /**
      * Get a list of registered devices
+     * @returns An array of registered devices
      */
     async getDevices(): Promise<Device[]> {
         const url = `${this.baseUrl}/devices`;
@@ -112,6 +137,7 @@ export class Client {
 
     /**
      * Check if the service is healthy
+     * @returns A promise that resolves to the health response
      */
     async getHealth(): Promise<HealthResponse> {
         const url = `${this.baseUrl}/health`;
@@ -146,6 +172,7 @@ export class Client {
      * Get logs within a specified time range
      * @param from - The start of the time range (optional)
      * @param to - The end of the time range (optional)
+     * @returns An array of log entries
      */
     async getLogs(from?: Date, to?: Date): Promise<LogEntry[]> {
         const url = new URL(`${this.baseUrl}/logs`);
@@ -165,6 +192,7 @@ export class Client {
 
     /**
      * Get settings for the user
+     * @returns The user's settings
      */
     async getSettings(): Promise<DeviceSettings> {
         const url = `${this.baseUrl}/settings`;

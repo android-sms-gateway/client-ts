@@ -12,6 +12,7 @@ A TypeScript-first client for seamless integration with the [SMS Gateway for And
 **Note**: The API doesn't provide CORS headers, so the library cannot be used in a browser environment directly.
 
 ## 📖 Table of Contents
+
 - [📱 SMS Gateway for Android™ JS/TS API Client](#-sms-gateway-for-android-jsts-api-client)
   - [📖 Table of Contents](#-table-of-contents)
   - [✨ Features](#-features)
@@ -37,6 +38,7 @@ A TypeScript-first client for seamless integration with the [SMS Gateway for And
   - [📄 License](#-license)
 
 ## ✨ Features
+
 - **TypeScript Ready**: Full type definitions out of the box
 - **Flexible HTTP Clients**: Works with any HTTP library (fetch, axios, node-fetch, etc.)
 - **Promise-based API**: Async/await ready
@@ -48,9 +50,9 @@ A TypeScript-first client for seamless integration with the [SMS Gateway for And
 - **Settings Management**: Get, update, and partially update settings
 - **Customizable Base URL**: Point to different API endpoints
 - **Server-Side Focus**: Designed for Node.js environments
-- **Native Date Support**: Use JavaScript Date objects for date parameters
 
 ## ⚙️ Requirements
+
 - Node.js v18+
 - npm/yarn/bun package manager
 
@@ -67,6 +69,7 @@ bun add android-sms-gateway
 ## 🚀 Quickstart
 
 ### Basic Usage
+
 ```typescript
 import Client from 'android-sms-gateway';
 
@@ -142,6 +145,7 @@ sendSMSWithSkipValidation();
 ```
 
 ### Webhook Management
+
 ```typescript
 // Create webhook
 const webhook = {
@@ -159,6 +163,7 @@ api.getWebhooks()
 ```
 
 ### Device Management
+
 ```typescript
 // List devices
 api.getDevices()
@@ -172,6 +177,7 @@ api.deleteDevice('device-id')
 ```
 
 ### Health Check
+
 ```typescript
 // Check system health
 api.getHealth()
@@ -183,6 +189,7 @@ api.getHealth()
 ```
 
 ### Inbox Export
+
 ```typescript
 // Export inbox messages
 const since = new Date('2024-01-01T00:00:00Z');
@@ -194,6 +201,7 @@ api.exportInbox({ deviceId: 'device-id', since, until })
 ```
 
 ### Log Retrieval
+
 ```typescript
 // Get logs
 const from = new Date('2024-01-01T00:00:00Z');
@@ -205,6 +213,7 @@ api.getLogs(from, to)
 ```
 
 ### Settings Management
+
 ```typescript
 // Get settings
 api.getSettings()
@@ -276,6 +285,7 @@ The `Client` class accepts the following constructor arguments:
 | `patchSettings(settings: Partial<DeviceSettings>)`                    | Partially update settings     | `Promise<void>`           |
 
 ### Type Definitions
+
 ```typescript
 interface Message {
     id?: string | null;
@@ -359,11 +369,13 @@ interface HttpClient {
 ## 🔒 Security Notes
 
 ⚠️ **Important Security Practices**
+
 - Always store credentials in environment variables
 - Never expose credentials in client-side code
 - Use HTTPS for all production communications
 
 ## 📚 API Reference
+
 For complete API documentation including all available methods, request/response schemas, and error codes, visit:
 [📘 Official API Documentation](https://docs.sms-gate.app/integration/api/)
 
@@ -378,6 +390,7 @@ We welcome contributions! Please follow these steps:
 5. Open a Pull Request
 
 ### Development Setup
+
 ```bash
 git clone https://github.com/android-sms-gateway/client-ts.git
 cd client-ts
@@ -387,6 +400,7 @@ bun test
 ```
 
 ## 📄 License
+
 Distributed under the Apache 2.0 License. See [LICENSE](LICENSE) for more information.
 
 ---
