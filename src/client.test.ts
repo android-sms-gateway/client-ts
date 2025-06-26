@@ -127,7 +127,7 @@ describe('Client', () => {
 
     it('gets webhooks', async () => {
         const expectedWebhooks: WebHook[] = [
-            { id: '1', url: 'https://example.com/webhook1', event: WebHookEventType.SmsReceived, deviceId: 'device1' },
+            { id: '1', url: 'https://example.com/webhook1', event: WebHookEventType.SmsReceived, deviceId: null },
             { id: '2', url: 'https://example.com/webhook2', event: WebHookEventType.SystemPing, deviceId: 'device2' },
         ];
 
@@ -149,7 +149,7 @@ describe('Client', () => {
         const req: RegisterWebHookRequest = {
             url: 'https://example.com/webhook',
             event: WebHookEventType.SmsReceived,
-            deviceId: 'device1'
+            deviceId: null,
         }
         const expectedRes: WebHook = {
             id: 'test',
@@ -232,8 +232,8 @@ describe('Client', () => {
             version: '1.0.0',
             releaseId: 1,
             checks: {
-                'cpu': { status: HealthStatus.Pass, description: 'CPU usage', observedValue: 10, observedUnit: '%' },
-                'memory': { status: HealthStatus.Pass, description: 'Memory usage', observedValue: 500, observedUnit: 'MB' },
+                'messages:failed': { status: HealthStatus.Pass, description: 'Failed messages for last hour', observedValue: 0, observedUnit: 'messages' },
+                'connection:status': { status: HealthStatus.Pass, description: 'Internet connection status', observedValue: 1, observedUnit: 'boolean' },
             },
         };
 
