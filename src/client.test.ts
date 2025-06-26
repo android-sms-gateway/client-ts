@@ -58,7 +58,7 @@ describe('Client', () => {
             message,
             {
                 "Content-Type": "application/json",
-                "User-Agent": "android-sms-gateway/2.0 (client; js)",
+                "User-Agent": "android-sms-gateway/3.0 (client; js)",
                 Authorization: expect.any(String),
             },
         );
@@ -91,7 +91,7 @@ describe('Client', () => {
             message,
             {
                 "Content-Type": "application/json",
-                "User-Agent": "android-sms-gateway/2.0 (client; js)",
+                "User-Agent": "android-sms-gateway/3.0 (client; js)",
                 Authorization: expect.any(String),
             },
         );
@@ -118,7 +118,7 @@ describe('Client', () => {
         expect(mockHttpClient.get).toHaveBeenCalledWith(
             `${BASE_URL}/message/${messageId}`,
             {
-                "User-Agent": "android-sms-gateway/2.0 (client; js)",
+                "User-Agent": "android-sms-gateway/3.0 (client; js)",
                 Authorization: expect.any(String),
             },
         );
@@ -138,7 +138,7 @@ describe('Client', () => {
         expect(mockHttpClient.get).toHaveBeenCalledWith(
             `${BASE_URL}/webhooks`,
             {
-                "User-Agent": "android-sms-gateway/2.0 (client; js)",
+                "User-Agent": "android-sms-gateway/3.0 (client; js)",
                 Authorization: expect.any(String),
             },
         );
@@ -167,7 +167,7 @@ describe('Client', () => {
             req,
             {
                 "Content-Type": "application/json",
-                "User-Agent": "android-sms-gateway/2.0 (client; js)",
+                "User-Agent": "android-sms-gateway/3.0 (client; js)",
                 Authorization: expect.any(String),
             },
         );
@@ -182,7 +182,7 @@ describe('Client', () => {
         expect(mockHttpClient.delete).toHaveBeenCalledWith(
             `${BASE_URL}/webhooks/test`,
             {
-                "User-Agent": "android-sms-gateway/2.0 (client; js)",
+                "User-Agent": "android-sms-gateway/3.0 (client; js)",
                 Authorization: expect.any(String),
             },
         );
@@ -204,7 +204,7 @@ describe('Client', () => {
         expect(mockHttpClient.get).toHaveBeenCalledWith(
             `${BASE_URL}/devices`,
             {
-                "User-Agent": "android-sms-gateway/2.0 (client; js)",
+                "User-Agent": "android-sms-gateway/3.0 (client; js)",
                 Authorization: expect.any(String),
             },
         );
@@ -219,7 +219,7 @@ describe('Client', () => {
         expect(mockHttpClient.delete).toHaveBeenCalledWith(
             `${BASE_URL}/devices/test-device-id`,
             {
-                "User-Agent": "android-sms-gateway/2.0 (client; js)",
+                "User-Agent": "android-sms-gateway/3.0 (client; js)",
                 Authorization: expect.any(String),
             },
         );
@@ -244,7 +244,7 @@ describe('Client', () => {
         expect(mockHttpClient.get).toHaveBeenCalledWith(
             `${BASE_URL}/health`,
             {
-                "User-Agent": "android-sms-gateway/2.0 (client; js)",
+                "User-Agent": "android-sms-gateway/3.0 (client; js)",
                 Authorization: expect.any(String),
             },
         );
@@ -270,7 +270,7 @@ describe('Client', () => {
             expectedRequest,
             {
                 "Content-Type": "application/json",
-                "User-Agent": "android-sms-gateway/2.0 (client; js)",
+                "User-Agent": "android-sms-gateway/3.0 (client; js)",
                 Authorization: expect.any(String),
             },
         );
@@ -292,7 +292,7 @@ describe('Client', () => {
         expect(mockHttpClient.get).toHaveBeenCalledWith(
             `${BASE_URL}/logs?from=${encodeURIComponent(from.toISOString())}&to=${encodeURIComponent(to.toISOString())}`,
             {
-                "User-Agent": "android-sms-gateway/2.0 (client; js)",
+                "User-Agent": "android-sms-gateway/3.0 (client; js)",
                 Authorization: expect.any(String),
             },
         );
@@ -312,7 +312,7 @@ describe('Client', () => {
         expect(mockHttpClient.get).toHaveBeenCalledWith(
             `${BASE_URL}/settings`,
             {
-                "User-Agent": "android-sms-gateway/2.0 (client; js)",
+                "User-Agent": "android-sms-gateway/3.0 (client; js)",
                 Authorization: expect.any(String),
             },
         );
@@ -334,7 +334,7 @@ describe('Client', () => {
             settings,
             {
                 "Content-Type": "application/json",
-                "User-Agent": "android-sms-gateway/2.0 (client; js)",
+                "User-Agent": "android-sms-gateway/3.0 (client; js)",
                 Authorization: expect.any(String),
             },
         );
@@ -355,7 +355,7 @@ describe('Client', () => {
             settings,
             {
                 "Content-Type": "application/json",
-                "User-Agent": "android-sms-gateway/2.0 (client; js)",
+                "User-Agent": "android-sms-gateway/3.0 (client; js)",
                 Authorization: expect.any(String),
             },
         );
