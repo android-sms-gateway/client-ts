@@ -28,7 +28,7 @@ export class Client {
         this.baseUrl = baseUrl;
         this.httpClient = httpClient;
         this.defaultHeaders = {
-            "User-Agent": "android-sms-gateway/2.0 (client; js)",
+            "User-Agent": "android-sms-gateway/3.0 (client; js)",
             "Authorization": `Basic ${btoa(`${login}:${password}`)}`,
         }
     }
