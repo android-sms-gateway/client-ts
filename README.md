@@ -1,4 +1,4 @@
-# 📱 SMS Gateway for Android™ JS/TS API Client
+# 📱 SMSGate JS/TS API Client
 
 [![npm Version](https://img.shields.io/npm/v/android-sms-gateway.svg?style=for-the-badge)](https://www.npmjs.com/package/android-sms-gateway)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg?style=for-the-badge)](https://github.com/android-sms-gateway/client-ts/blob/master/LICENSE)
@@ -7,14 +7,17 @@
 [![GitHub Stars](https://img.shields.io/github/stars/android-sms-gateway/client-ts.svg?style=for-the-badge)](https://github.com/android-sms-gateway/client-ts/stargazers)
 [![TypeScript](https://img.shields.io/badge/%3C%2F%3E-TypeScript-%230074c1.svg?style=for-the-badge)](https://www.typescriptlang.org/)
 
-A TypeScript-first client for seamless integration with the [SMS Gateway for Android](https://sms-gate.app) API. Programmatically send SMS messages through your Android devices with strict typing and modern JavaScript features.
+A TypeScript-first client for seamless integration with the [SMSGate](https://sms-gate.app) API. Programmatically send SMS messages through your Android devices with strict typing and modern JavaScript features.
 
 **Note**: The API doesn't provide CORS headers, so the library cannot be used in a browser environment directly.
 
 ## 📖 Table of Contents
 
-- [📱 SMS Gateway for Android™ JS/TS API Client](#-sms-gateway-for-android-jsts-api-client)
+- [📱 SMSGate JS/TS API Client](#-smsgate-jsts-api-client)
   - [📖 Table of Contents](#-table-of-contents)
+  - [🔐 Authentication](#-authentication)
+    - [Basic Authentication](#basic-authentication)
+    - [JWT Authentication](#jwt-authentication)
   - [✨ Features](#-features)
   - [⚙️ Requirements](#️-requirements)
   - [📦 Installation](#-installation)
@@ -28,6 +31,7 @@ A TypeScript-first client for seamless integration with the [SMS Gateway for And
     - [Settings Management](#settings-management)
   - [🤖 Client Guide](#-client-guide)
     - [Client Configuration](#client-configuration)
+      - [Authentication Configuration](#authentication-configuration)
     - [Core Methods](#core-methods)
     - [Type Definitions](#type-definitions)
   - [🌐 HTTP Clients](#-http-clients)
@@ -36,6 +40,28 @@ A TypeScript-first client for seamless integration with the [SMS Gateway for And
   - [👥 Contributing](#-contributing)
     - [Development Setup](#development-setup)
   - [📄 License](#-license)
+
+## 🔐 Authentication
+
+The SMSGate client supports two authentication methods: **Basic Authentication** and **JWT (JSON Web Token) Authentication**. JWT is the recommended approach for production environments due to its enhanced security features and support for scoped permissions.
+
+### Basic Authentication
+
+Basic Authentication uses a username and password to access the API. This method is simple but less secure for production use.
+
+**When to use:**
+- Simple integrations
+- Development and testing
+- Legacy systems
+
+### JWT Authentication
+
+JWT Authentication uses bearer tokens with configurable scopes to access the API. This method provides enhanced security and fine-grained access control.
+
+**When to use:**
+- Production environments
+- Applications requiring scoped permissions
+- Systems with multiple components needing different access levels
 
 ## ✨ Features
 
@@ -73,75 +99,80 @@ bun add android-sms-gateway
 ```typescript
 import Client from 'android-sms-gateway';
 
-// Create a fetch-based HTTP client
-const httpFetchClient = {
-    get: async (url, headers) => {
-        const response = await fetch(url, {
-            method: "GET",
-            headers
-        });
-
-        return response.json();
-    },
-    post: async (url, body, headers) => {
-        const response = await fetch(url, {
-            method: "POST",
-            headers,
-            body: JSON.stringify(body)
-        });
-
-        return response.json();
-    },
-    delete: async (url, headers) => {
-        const response = await fetch(url, {
-            method: "DELETE",
-            headers
-        });
-
-        return response.json();
-    }
-};
-
-// Initialize client
-const api = new Client(
+// First, create a client with Basic Auth to generate a JWT token
+const basicAuthClient = new Client(
     process.env.ANDROID_SMS_GATEWAY_LOGIN!,
-    process.env.ANDROID_SMS_GATEWAY_PASSWORD!,
-    httpFetchClient
+    process.env.ANDROID_SMS_GATEWAY_PASSWORD!
 );
 
-// Send message
-const message = {
-    phoneNumbers: ['+1234567890'],
-    message: 'Secure OTP: 123456 🔐'
-};
+// Generate a JWT token with specific scopes
+async function generateJWTToken() {
+    try {
+        const tokenRequest = {
+            scopes: [
+                "messages:send",
+                "messages:read",
+                "devices:list"
+            ],
+            ttl: 3600 // Token expires in 1 hour
+        };
+        
+        const tokenResponse = await basicAuthClient.generateToken(tokenRequest);
+        console.log('JWT Token generated, expires at:', tokenResponse.expires_at);
+        return tokenResponse.access_token;
+    } catch (error) {
+        console.error('Token generation failed:', error);
+        throw error;
+    }
+}
 
+// Initialize client with JWT Authentication
+async function initializeJWTClient() {
+    const jwtToken = await generateJWTToken();
+    
+    // Initialize client with JWT token (empty string for login, token for password)
+    const jwtClient = new Client(
+        "", // Empty string for login when using JWT
+        jwtToken // JWT token
+    );
+    
+    return jwtClient;
+}
+
+// Send message using JWT Authentication
 async function sendSMS() {
     try {
-        const state = await api.send(message);
+        const jwtClient = await initializeJWTClient();
+        
+        const message = {
+            phoneNumbers: ['+1234567890'],
+            message: 'Secure OTP: 123456 🔐'
+        };
+        
+        const state = await jwtClient.send(message);
         console.log('Message ID:', state.id);
-
+        
         // Check status after 5 seconds
         setTimeout(async () => {
-            const updatedState = await api.getState(state.id);
-            console.log('Message status:', updatedState.status);
+            const updatedState = await jwtClient.getState(state.id);
+            console.log('Message status:', updatedState.state);
         }, 5000);
     } catch (error) {
         console.error('Sending failed:', error);
     }
 }
 
-// Send message with skipPhoneValidation
-async function sendSMSWithSkipValidation() {
+// Revoke a JWT token
+async function revokeJWTToken(jti: string) {
     try {
-        const state = await api.send(message, { skipPhoneValidation: true });
-        console.log('Message ID (with skip validation):', state.id);
+        await basicAuthClient.revokeToken(jti);
+        console.log('JWT token revoked successfully');
     } catch (error) {
-        console.error('Sending failed:', error);
+        console.error('Token revocation failed:', error);
     }
 }
 
 sendSMS();
-sendSMSWithSkipValidation();
 ```
 
 ### Webhook Management
@@ -248,10 +279,32 @@ The `Client` class accepts the following constructor arguments:
 
 | Argument     | Description                | Default                                  |
 | ------------ | -------------------------- | ---------------------------------------- |
-| `login`      | Username                   | **Required**                             |
-| `password`   | Password                   | **Required**                             |
-| `httpClient` | HTTP client implementation | **Required**                             |
+| `login`      | Username or empty string   | **Required**                             |
+| `password`   | Password or JWT token      | **Required**                             |
+| `httpClient` | HTTP client implementation | `fetch`                                  |
 | `baseUrl`    | API base URL               | `"https://api.sms-gate.app/3rdparty/v1"` |
+
+#### Authentication Configuration
+
+**Basic Authentication:**
+```typescript
+const api = new Client(
+    process.env.ANDROID_SMS_GATEWAY_LOGIN!,  // Username
+    process.env.ANDROID_SMS_GATEWAY_PASSWORD!  // Password
+);
+```
+
+**JWT Authentication:**
+```typescript
+const api = new Client(
+    "",  // Empty string for login when using JWT
+    jwtToken  // JWT token
+);
+```
+
+The client automatically detects which authentication method to use based on the `login` parameter:
+- If `login` is a non-empty string: Uses Basic Authentication
+- If `login` is an empty string: Uses JWT Authentication with the provided token
 
 ### Core Methods
 
@@ -283,6 +336,10 @@ The `Client` class accepts the following constructor arguments:
 | `getSettings()`                                                       | Get settings                  | `Promise<DeviceSettings>` |
 | `updateSettings(settings: DeviceSettings)`                            | Update settings               | `Promise<void>`           |
 | `patchSettings(settings: Partial<DeviceSettings>)`                    | Partially update settings     | `Promise<void>`           |
+|                                                                       |                               |                           |
+| **JWT Token Management**                                              |                               |                           |
+| `generateToken(request: TokenRequest)`                                | Generate new JWT token        | `Promise<TokenResponse>`  |
+| `revokeToken(jti: string)`                                            | Revoke JWT token by ID        | `Promise<void>`           |
 
 ### Type Definitions
 
@@ -348,13 +405,49 @@ interface MessagesExportRequest {
     since: string;
     until: string;
 }
+
+// JWT Authentication Types
+
+interface TokenRequest {
+    /**
+     * The scopes to include in the token.
+     */
+    scopes: string[];
+
+    /**
+     * The time-to-live (TTL) of the token in seconds.
+     */
+    ttl?: number;
+}
+
+interface TokenResponse {
+    /**
+     * The JWT access token.
+     */
+    access_token: string;
+
+    /**
+     * The type of the token.
+     */
+    token_type: string;
+
+    /**
+     * The unique identifier of the token.
+     */
+    id: string;
+
+    /**
+     * The expiration time of the token.
+     */
+    expires_at: string;
+}
 ```
 
 For more details, see the [`domain.ts`](./src/domain.ts).
 
 ## 🌐 HTTP Clients
 
-The library doesn't come with built-in HTTP clients. Instead, you should provide your own implementation of the `HttpClient` interface:
+The library comes with fetch-based built-in HTTP client. You can provide your own implementation of the `HttpClient` interface:
 
 ```typescript
 interface HttpClient {
@@ -373,6 +466,11 @@ interface HttpClient {
 - Always store credentials in environment variables
 - Never expose credentials in client-side code
 - Use HTTPS for all production communications
+- Rotate passwords regularly
+- Use strong, unique passwords
+- Use appropriate TTL values based on your security requirements
+- Apply the principle of least privilege
+- Implement proper token revocation workflows
 
 ## 📚 API Reference
 
