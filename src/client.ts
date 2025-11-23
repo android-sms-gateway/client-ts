@@ -19,18 +19,75 @@ export class Client {
     private defaultHeaders: Record<string, string>;
 
     /**
-     * @param login The login to use for authentication
-     * @param password The password to use for authentication
+     * @param login The login to use for authentication, pass empty string for JWT
+     * @param password The password or JWT to use for authentication
      * @param httpClient The HTTP client to use for requests
      * @param baseUrl The base URL to use for requests. Defaults to {@link BASE_URL}.
      */
-    constructor(login: string, password: string, httpClient: HttpClient, baseUrl = BASE_URL) {
+    constructor(
+        login: string,
+        password: string,
+        httpClient?: HttpClient,
+        baseUrl = BASE_URL
+    ) {
         this.baseUrl = baseUrl;
-        this.httpClient = httpClient;
+        this.httpClient = httpClient || this.getDefaultHttpClient();
         this.defaultHeaders = {
             "User-Agent": "android-sms-gateway/3.0 (client; js)",
-            "Authorization": `Basic ${btoa(`${login}:${password}`)}`,
+        };
+
+        if (login === "") {
+            if (password === "") {
+                throw new Error("Token is required for JWT authentication");
+            }
+            this.defaultHeaders["Authorization"] = `Bearer ${password}`;
+        } else {
+            if (password === "") {
+                throw new Error("Password is required when using Basic Auth with login");
+            }
+            this.defaultHeaders["Authorization"] = `Basic ${btoa(`${login}:${password}`)}`;
         }
+    }
+
+    /**
+     * Gets the default HTTP client implementation
+     */
+    private getDefaultHttpClient(): HttpClient {
+        // This would typically be implemented elsewhere, but we'll provide a basic implementation
+        return {
+            get: async <T>(url: string, headers?: Record<string, string>): Promise<T> => {
+                const response = await fetch(url, { method: 'GET', headers });
+                return response.json();
+            },
+            post: async <T>(url: string, body: any, headers?: Record<string, string>): Promise<T> => {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers,
+                    body: JSON.stringify(body)
+                });
+                return response.json();
+            },
+            put: async <T>(url: string, body: any, headers?: Record<string, string>): Promise<T> => {
+                const response = await fetch(url, {
+                    method: 'PUT',
+                    headers,
+                    body: JSON.stringify(body)
+                });
+                return response.json();
+            },
+            patch: async <T>(url: string, body: any, headers?: Record<string, string>): Promise<T> => {
+                const response = await fetch(url, {
+                    method: 'PATCH',
+                    headers,
+                    body: JSON.stringify(body)
+                });
+                return response.json();
+            },
+            delete: async <T>(url: string, headers?: Record<string, string>): Promise<T> => {
+                const response = await fetch(url, { method: 'DELETE', headers });
+                return response.json();
+            },
+        };
     }
 
     /**
