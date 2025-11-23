@@ -472,6 +472,46 @@ export interface MessagesExportRequest {
 }
 
 /**
+ * Represents a request to generate a new JWT token.
+ */
+export interface TokenRequest {
+    /**
+     * The scopes to include in the token.
+     */
+    scopes: string[];
+
+    /**
+     * The time-to-live (TTL) of the token in seconds.
+     */
+    ttl?: number;
+}
+
+/**
+ * Represents a response containing a new JWT token.
+ */
+export interface TokenResponse {
+    /**
+     * The JWT access token.
+     */
+    access_token: string;
+
+    /**
+     * The type of the token.
+     */
+    token_type: string;
+
+    /**
+     * The unique identifier of the token.
+     */
+    id: string;
+
+    /**
+     * The expiration time of the token.
+     */
+    expires_at: string;
+}
+
+/**
  * Represents the payload of a webhook event.
  */
 export type WebHookPayload =

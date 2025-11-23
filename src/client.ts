@@ -7,7 +7,9 @@ import {
     DeviceSettings,
     HealthResponse,
     LogEntry,
-    MessagesExportRequest
+    MessagesExportRequest,
+    TokenRequest,
+    TokenResponse
 } from "./domain";
 import { HttpClient } from "./http";
 
@@ -53,11 +55,28 @@ export class Client {
      * Gets the default HTTP client implementation
      */
     private getDefaultHttpClient(): HttpClient {
-        // This would typically be implemented elsewhere, but we'll provide a basic implementation
+        const handleResponse = async (response: Response): Promise<any> => {
+            if (response.status === 204) {
+                return null;
+            }
+
+            if (!response.ok) {
+                const text = await response.text();
+                throw new Error(`HTTP error ${response.status}: ${text}`);
+            }
+
+            const contentType = response.headers.get("Content-Type");
+            if (contentType && contentType.includes("application/json")) {
+                return await response.json();
+            } else {
+                return await response.text();
+            }
+        };
+
         return {
             get: async <T>(url: string, headers?: Record<string, string>): Promise<T> => {
                 const response = await fetch(url, { method: 'GET', headers });
-                return response.json();
+                return handleResponse(response);
             },
             post: async <T>(url: string, body: any, headers?: Record<string, string>): Promise<T> => {
                 const response = await fetch(url, {
@@ -65,7 +84,7 @@ export class Client {
                     headers,
                     body: JSON.stringify(body)
                 });
-                return response.json();
+                return handleResponse(response);
             },
             put: async <T>(url: string, body: any, headers?: Record<string, string>): Promise<T> => {
                 const response = await fetch(url, {
@@ -73,7 +92,7 @@ export class Client {
                     headers,
                     body: JSON.stringify(body)
                 });
-                return response.json();
+                return handleResponse(response);
             },
             patch: async <T>(url: string, body: any, headers?: Record<string, string>): Promise<T> => {
                 const response = await fetch(url, {
@@ -81,11 +100,11 @@ export class Client {
                     headers,
                     body: JSON.stringify(body)
                 });
-                return response.json();
+                return handleResponse(response);
             },
             delete: async <T>(url: string, headers?: Record<string, string>): Promise<T> => {
                 const response = await fetch(url, { method: 'DELETE', headers });
-                return response.json();
+                return handleResponse(response);
             },
         };
     }
@@ -286,5 +305,33 @@ export class Client {
         };
 
         return this.httpClient.patch<void>(url, settings, headers);
+    }
+
+    /**
+     * Generate a new JWT token with specified scopes and TTL
+     * @param request - The token request parameters
+     * @returns The generated token response
+     */
+    async generateToken(request: TokenRequest): Promise<TokenResponse> {
+        const url = `${this.baseUrl}/auth/token`;
+        const headers = {
+            "Content-Type": "application/json",
+            ...this.defaultHeaders,
+        };
+
+        return this.httpClient.post<TokenResponse>(url, request, headers);
+    }
+
+    /**
+     * Revoke a JWT token by its ID
+     * @param jti - The JWT token ID to revoke
+     */
+    async revokeToken(jti: string): Promise<void> {
+        const url = `${this.baseUrl}/auth/token/${jti}`;
+        const headers = {
+            ...this.defaultHeaders,
+        };
+
+        return this.httpClient.delete<void>(url, headers);
     }
 }
