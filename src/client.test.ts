@@ -11,6 +11,8 @@ import {
     MessageState,
     ProcessState,
     RegisterWebHookRequest,
+    TokenRequest,
+    TokenResponse,
     WebHook,
     WebHookEventType,
 } from './domain';
@@ -345,7 +347,7 @@ describe('Client', () => {
     describe('Client with JWT Authentication', () => {
         let client: Client;
         let mockHttpClient: HttpClient;
-        const jwtToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ';
+        const jwtToken = 'fake-token-123';
 
         beforeEach(() => {
             mockHttpClient = {
@@ -389,7 +391,7 @@ describe('Client', () => {
                 {
                     "Content-Type": "application/json",
                     "User-Agent": "android-sms-gateway/3.0 (client; js)",
-                    Authorization: `Bearer ${jwtToken}`,
+                    Authorization: `Bearer fake-token-123`,
                 },
             );
             expect(result).toBe(expectedState);
@@ -416,7 +418,7 @@ describe('Client', () => {
                 `${BASE_URL}/message/${messageId}`,
                 {
                     "User-Agent": "android-sms-gateway/3.0 (client; js)",
-                    Authorization: `Bearer ${jwtToken}`,
+                    Authorization: `Bearer fake-token-123`,
                 },
             );
             expect(result).toBe(expectedState);
@@ -507,5 +509,94 @@ describe('Client', () => {
             },
         );
         expect(result).toBe(undefined);
+    });
+
+    // JWT Token Management Tests
+    describe('JWT Token Management', () => {
+        let client: Client;
+        let mockHttpClient: HttpClient;
+
+        beforeEach(() => {
+            mockHttpClient = {
+                get: jest.fn(),
+                post: jest.fn(),
+                put: jest.fn(),
+                patch: jest.fn(),
+                delete: jest.fn(),
+            } as unknown as HttpClient;
+            client = new Client('login', 'password', mockHttpClient);
+        });
+
+        it('generates a new token', async () => {
+            const tokenRequest: TokenRequest = {
+                scopes: ['read', 'write'],
+                ttl: 3600,
+            };
+            const expectedResponse: TokenResponse = {
+                access_token: 'fake-token-123',
+                token_type: 'Bearer',
+                id: 'token-id-123',
+                expires_at: '2024-12-31T23:59:59Z',
+            };
+
+            (mockHttpClient.post as jest.Mock).mockResolvedValue(expectedResponse);
+
+            const result = await client.generateToken(tokenRequest);
+
+            expect(mockHttpClient.post).toHaveBeenCalledWith(
+                `${BASE_URL}/auth/token`,
+                tokenRequest,
+                {
+                    "Content-Type": "application/json",
+                    "User-Agent": "android-sms-gateway/3.0 (client; js)",
+                    Authorization: expect.any(String),
+                },
+            );
+            expect(result).toBe(expectedResponse);
+        });
+
+        it('generates a new token without TTL', async () => {
+            const tokenRequest: TokenRequest = {
+                scopes: ['read'],
+            };
+            const expectedResponse: TokenResponse = {
+                access_token: 'fake-token-123',
+                token_type: 'Bearer',
+                id: 'token-id-456',
+                expires_at: '2024-12-31T23:59:59Z',
+            };
+
+            (mockHttpClient.post as jest.Mock).mockResolvedValue(expectedResponse);
+
+            const result = await client.generateToken(tokenRequest);
+
+            expect(mockHttpClient.post).toHaveBeenCalledWith(
+                `${BASE_URL}/auth/token`,
+                tokenRequest,
+                {
+                    "Content-Type": "application/json",
+                    "User-Agent": "android-sms-gateway/3.0 (client; js)",
+                    Authorization: expect.any(String),
+                },
+            );
+            expect(result).toBe(expectedResponse);
+        });
+
+        it('revokes a token', async () => {
+            const jti = 'token-id-123';
+
+            (mockHttpClient.delete as jest.Mock).mockResolvedValue(undefined);
+
+            const result = await client.revokeToken(jti);
+
+            expect(mockHttpClient.delete).toHaveBeenCalledWith(
+                `${BASE_URL}/auth/token/${jti}`,
+                {
+                    "User-Agent": "android-sms-gateway/3.0 (client; js)",
+                    Authorization: expect.any(String),
+                },
+            );
+            expect(result).toBe(undefined);
+        });
     });
 });
