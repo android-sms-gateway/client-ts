@@ -12,7 +12,7 @@ import {
     ProcessState,
     RegisterWebHookRequest,
     WebHook,
-    WebHookEventType
+    WebHookEventType,
 } from './domain';
 import { HttpClient } from './http';
 
@@ -339,6 +339,153 @@ describe('Client', () => {
             },
         );
         expect(result).toBe(undefined);
+    });
+
+    // JWT Authentication Tests
+    describe('Client with JWT Authentication', () => {
+        let client: Client;
+        let mockHttpClient: HttpClient;
+        const jwtToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ';
+
+        beforeEach(() => {
+            mockHttpClient = {
+                get: jest.fn(),
+                post: jest.fn(),
+                put: jest.fn(),
+                patch: jest.fn(),
+                delete: jest.fn(),
+            } as unknown as HttpClient;
+
+            client = new Client('', jwtToken, mockHttpClient);
+        });
+
+        it('creates client with JWT authentication', () => {
+            expect(client).toBeDefined();
+        });
+
+        it('sends a message with JWT authentication', async () => {
+            const message: Message = {
+                message: 'Hello',
+                phoneNumbers: ['+1234567890'],
+            };
+            const expectedState: MessageState = {
+                id: '123',
+                state: ProcessState.Pending,
+                recipients: [
+                    {
+                        phoneNumber: '+1234567890',
+                        state: ProcessState.Pending,
+                    }
+                ]
+            };
+
+            (mockHttpClient.post as jest.Mock).mockResolvedValue(expectedState);
+
+            const result = await client.send(message);
+
+            expect(mockHttpClient.post).toHaveBeenCalledWith(
+                `${BASE_URL}/message`,
+                message,
+                {
+                    "Content-Type": "application/json",
+                    "User-Agent": "android-sms-gateway/3.0 (client; js)",
+                    Authorization: `Bearer ${jwtToken}`,
+                },
+            );
+            expect(result).toBe(expectedState);
+        });
+
+        it('gets the state of a message with JWT authentication', async () => {
+            const messageId = '123';
+            const expectedState: MessageState = {
+                id: '123',
+                state: ProcessState.Pending,
+                recipients: [
+                    {
+                        phoneNumber: '+1234567890',
+                        state: ProcessState.Pending,
+                    }
+                ]
+            };
+
+            (mockHttpClient.get as jest.Mock).mockResolvedValue(expectedState);
+
+            const result = await client.getState(messageId);
+
+            expect(mockHttpClient.get).toHaveBeenCalledWith(
+                `${BASE_URL}/message/${messageId}`,
+                {
+                    "User-Agent": "android-sms-gateway/3.0 (client; js)",
+                    Authorization: `Bearer ${jwtToken}`,
+                },
+            );
+            expect(result).toBe(expectedState);
+        });
+
+        it('throws error when JWT token is missing', () => {
+            expect(() => {
+                new Client('', '', mockHttpClient);
+            }).toThrow('Token is required for JWT authentication');
+        });
+    });
+
+    // Backward Compatibility Tests
+    describe('Client Backward Compatibility', () => {
+        let client: Client;
+        let mockHttpClient: HttpClient;
+
+        beforeEach(() => {
+            mockHttpClient = {
+                get: jest.fn(),
+                post: jest.fn(),
+                put: jest.fn(),
+                patch: jest.fn(),
+                delete: jest.fn(),
+            } as unknown as HttpClient;
+            client = new Client('login', 'password', mockHttpClient);
+        });
+
+        it('creates client with Basic Auth using legacy constructor', () => {
+            expect(client).toBeDefined();
+        });
+
+        it('sends a message with Basic Auth using legacy constructor', async () => {
+            const message: Message = {
+                message: 'Hello',
+                phoneNumbers: ['+1234567890'],
+            };
+            const expectedState: MessageState = {
+                id: '123',
+                state: ProcessState.Pending,
+                recipients: [
+                    {
+                        phoneNumber: '+1234567890',
+                        state: ProcessState.Pending,
+                    }
+                ]
+            };
+
+            (mockHttpClient.post as jest.Mock).mockResolvedValue(expectedState);
+
+            const result = await client.send(message);
+
+            expect(mockHttpClient.post).toHaveBeenCalledWith(
+                `${BASE_URL}/message`,
+                message,
+                {
+                    "Content-Type": "application/json",
+                    "User-Agent": "android-sms-gateway/3.0 (client; js)",
+                    Authorization: expect.stringMatching(/^Basic /),
+                },
+            );
+            expect(result).toBe(expectedState);
+        });
+
+        it('throws error when password is missing in legacy constructor', () => {
+            expect(() => {
+                new Client('login', '', mockHttpClient);
+            }).toThrow('Password is required when using Basic Auth with login');
+        });
     });
 
     it('patches settings', async () => {
