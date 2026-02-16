@@ -31,7 +31,7 @@
     "dist"
   ],
   "devDependencies": {
-    "bun-plugin-dts": "^0.3.0",
+    "bun-plugin-dts": "^0.4.0",
     "bun-types": "latest"
   },
   "peerDependencies": {
