@@ -115,6 +115,11 @@ export enum WebHookEventType {
      * Indicates that an SMS message has failed to be sent.
      */
     SmsFailed = 'sms:failed',
+
+    /**
+     * Indicates that the application has been started.
+     */
+    AppStarted = 'app:started',
 }
 
 /**
