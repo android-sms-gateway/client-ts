@@ -110,6 +110,62 @@ export class Client {
     }
 
     /**
+     * Retrieves messages with filtering, pagination, and sorting
+     * @param options - Optional filters and pagination
+     * @param options.from - Start date (RFC 3339)
+     * @param options.to - End date (RFC 3339)
+     * @param options.state - Filter by processing state
+     * @param options.deviceId - Filter by device ID
+     * @param options.limit - Maximum number of messages (1-100, default 50)
+     * @param options.offset - Number of messages to skip
+     * @param options.includeContent - Include message content
+     * @param options.sort - Sort order (created_at or -created_at)
+     * @returns An array of message states
+     */
+    async listMessages(options?: {
+        from?: Date;
+        to?: Date;
+        state?: string;
+        deviceId?: string;
+        limit?: number;
+        offset?: number;
+        includeContent?: boolean;
+        sort?: 'created_at' | '-created_at';
+    }): Promise<MessageState[]> {
+        const url = new URL(`${this.baseUrl}/messages`);
+        if (options?.from) {
+            url.searchParams.append('from', options.from.toISOString());
+        }
+        if (options?.to) {
+            url.searchParams.append('to', options.to.toISOString());
+        }
+        if (options?.state) {
+            url.searchParams.append('state', options.state);
+        }
+        if (options?.deviceId) {
+            url.searchParams.append('deviceId', options.deviceId);
+        }
+        if (options?.limit !== undefined) {
+            url.searchParams.append('limit', options.limit.toString());
+        }
+        if (options?.offset !== undefined) {
+            url.searchParams.append('offset', options.offset.toString());
+        }
+        if (options?.includeContent !== undefined) {
+            url.searchParams.append('includeContent', options.includeContent.toString());
+        }
+        if (options?.sort) {
+            url.searchParams.append('sort', options.sort);
+        }
+
+        const headers = {
+            ...this.defaultHeaders,
+        };
+
+        return this.httpClient.get<MessageState[]>(url.toString(), headers);
+    }
+
+    /**
      * Sends a new message to the API
      * @param request - The message to send
      * @param options - Optional parameters
