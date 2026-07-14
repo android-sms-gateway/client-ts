@@ -6,6 +6,7 @@ import {
     Device,
     DeviceSettings,
     HealthResponse,
+    IncomingMessage,
     LogEntry,
     MessagesExportRequest,
     TokenRequest,
@@ -77,6 +78,14 @@ export class Client {
             get: async <T>(url: string, headers?: Record<string, string>): Promise<T> => {
                 const response = await fetch(url, { method: 'GET', headers });
                 return handleResponse(response);
+            },
+            getBinary: async (url: string, headers?: Record<string, string>): Promise<ArrayBuffer> => {
+                const response = await fetch(url, { method: 'GET', headers });
+                if (!response.ok) {
+                    const text = await response.text();
+                    throw new Error(`HTTP error ${response.status}: ${text}`);
+                }
+                return await response.arrayBuffer();
             },
             post: async <T>(url: string, body: any, headers?: Record<string, string>): Promise<T> => {
                 const response = await fetch(url, {
@@ -389,5 +398,75 @@ export class Client {
         };
 
         return this.httpClient.delete<void>(url, headers);
+    }
+
+    /**
+     * List incoming messages from the inbox.
+     * @param options - Optional filters and pagination
+     * @param options.type - Filter by message type (SMS, DATA_SMS, MMS, MMS_DOWNLOADED)
+     * @param options.from - Start date (RFC 3339)
+     * @param options.to - End date (RFC 3339)
+     * @param options.deviceId - Filter by device ID
+     * @param options.includeAttachments - Include attachment metadata in response
+     * @param options.limit - Maximum number of messages
+     * @param options.offset - Number of messages to skip
+     * @returns An array of incoming messages
+     */
+    async listInboxMessages(options?: {
+        type?: string;
+        from?: Date;
+        to?: Date;
+        deviceId?: string;
+        includeAttachments?: boolean;
+        limit?: number;
+        offset?: number;
+    }): Promise<IncomingMessage[]> {
+        const url = new URL(`${this.baseUrl}/inbox`);
+        if (options?.type) {
+            url.searchParams.append('type', options.type);
+        }
+        if (options?.from) {
+            url.searchParams.append('from', options.from.toISOString());
+        }
+        if (options?.to) {
+            url.searchParams.append('to', options.to.toISOString());
+        }
+        if (options?.deviceId) {
+            url.searchParams.append('deviceId', options.deviceId);
+        }
+        if (options?.includeAttachments !== undefined) {
+            url.searchParams.append('includeAttachments', options.includeAttachments.toString());
+        }
+        if (options?.limit !== undefined) {
+            url.searchParams.append('limit', options.limit.toString());
+        }
+        if (options?.offset !== undefined) {
+            url.searchParams.append('offset', options.offset.toString());
+        }
+
+        const headers = {
+            ...this.defaultHeaders,
+        };
+
+        return this.httpClient.get<IncomingMessage[]>(url.toString(), headers);
+    }
+
+    /**
+     * Download a raw MMS attachment by message ID and part ID.
+     * @param messageId - The message ID
+     * @param partId - The part ID from the attachment metadata
+     * @returns The raw bytes of the attachment
+     */
+    async downloadAttachment(messageId: string, partId: number): Promise<ArrayBuffer> {
+        const url = `${this.baseUrl}/inbox/${encodeURIComponent(messageId)}/attachments/${partId}`;
+        const headers = {
+            ...this.defaultHeaders,
+        };
+
+        if (!this.httpClient.getBinary) {
+            throw new Error('getBinary is not implemented by the provided HttpClient');
+        }
+
+        return this.httpClient.getBinary(url, headers);
     }
 }

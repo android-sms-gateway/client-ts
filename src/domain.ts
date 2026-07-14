@@ -120,6 +120,16 @@ export enum WebHookEventType {
      * Indicates that the application has been started.
      */
     AppStarted = 'app:started',
+
+    /**
+     * Indicates that a new MMS message notification has been received (not yet downloaded).
+     */
+    MmsReceived = 'mms:received',
+
+    /**
+     * Indicates that an MMS message has been downloaded and its attachments are available.
+     */
+    MmsDownloaded = 'mms:downloaded',
 }
 
 /**
@@ -640,8 +650,169 @@ export type WebHookPayload =
              */
             error: string;
         };
+    } |
+    /**
+     * Represents the payload of a webhook event of type `MmsReceived`.
+     */
+    {
+        /**
+         * The event type.
+         */
+        event: WebHookEventType.MmsReceived;
+
+        /**
+         * The payload of the event (MMS notification, not yet downloaded).
+         */
+        payload: MmsReceivedPayload;
+    } |
+    /**
+     * Represents the payload of a webhook event of type `MmsDownloaded`.
+     */
+    {
+        /**
+         * The event type.
+         */
+        event: WebHookEventType.MmsDownloaded;
+
+        /**
+         * The payload of the event (fully downloaded MMS with attachments).
+         */
+        payload: MmsDownloadedPayload;
     };
 
 type EmptyObject = {
     [K in any]: never
+}
+
+/**
+ * Payload of an mms:received event (MMS notification, not yet downloaded).
+ */
+export interface MmsReceivedPayload {
+    /** The unique identifier of the message. */
+    messageId: string;
+
+    /** The phone number of the sender. */
+    phoneNumber: string;
+
+    /** The phone number of the message sender. */
+    sender: string;
+
+    /** Unique MMS transaction identifier. */
+    transactionId: string;
+
+    /** MMS content classification. */
+    contentClass: string;
+
+    /** Attachment size in bytes. */
+    size: number;
+
+    /** The timestamp when the MMS message was received. */
+    receivedAt: string;
+
+    /** The phone number of the message recipient. */
+    recipient?: string;
+
+    /** The SIM card number that received the message. */
+    simNumber?: number;
+
+    /** Message subject line. */
+    subject?: string;
+}
+
+/**
+ * Metadata for a non-text MMS part (attachment).
+ */
+export interface MmsDownloadedAttachment {
+    /** The _id from content://mms/part. */
+    partId: number;
+
+    /** MIME type of the attachment (e.g. image/jpeg). */
+    contentType: string;
+
+    /** Filename of the attachment, if present. */
+    name?: string;
+
+    /** Base64-encoded attachment data, if available. */
+    data?: string;
+
+    /** Size in bytes, if known. */
+    size?: number;
+}
+
+/**
+ * Payload of an mms:downloaded event (fully downloaded MMS with attachments).
+ */
+export interface MmsDownloadedPayload {
+    /** The unique identifier of the message. */
+    messageId: string;
+
+    /** The phone number of the sender. */
+    phoneNumber: string;
+
+    /** The phone number of the message sender. */
+    sender: string;
+
+    /** Metadata for non-text MMS parts, including optional Base64 content. */
+    attachments: MmsDownloadedAttachment[];
+
+    /** The timestamp when the MMS message was received. */
+    receivedAt: string;
+
+    /** The phone number of the message recipient. */
+    recipient?: string;
+
+    /** The SIM card number that received the message. */
+    simNumber?: number;
+
+    /** Message subject line. */
+    subject?: string;
+
+    /** Aggregated text content of the MMS message. */
+    body?: string;
+}
+
+/**
+ * Metadata for an MMS attachment returned by the inbox API.
+ */
+export interface IncomingMessageAttachment {
+    /** Part ID of the attachment. */
+    partId: number;
+
+    /** Display name of the attachment file. */
+    name: string;
+
+    /** Size of the attachment in bytes. */
+    size: number;
+
+    /** MIME type of the attachment. */
+    contentType: string;
+}
+
+/**
+ * Represents an incoming message from the inbox.
+ */
+export interface IncomingMessage {
+    /** The unique identifier of the message. */
+    id: string;
+
+    /** Message type (SMS, DATA_SMS, MMS, MMS_DOWNLOADED). */
+    type: string;
+
+    /** Sender phone number. */
+    sender: string;
+
+    /** A preview of the message content. */
+    contentPreview: string;
+
+    /** When the message was received. */
+    createdAt: string;
+
+    /** Recipient phone number. */
+    recipient?: string;
+
+    /** SIM card number that received the message. */
+    simNumber?: number;
+
+    /** MMS attachment metadata (only present when include_attachments is true). */
+    attachments?: IncomingMessageAttachment[];
 }
