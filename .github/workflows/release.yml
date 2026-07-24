@@ -14,10 +14,10 @@ jobs:
     steps:
       - id: checkout
         name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v7
       - id: setup-bun
         name: Setup Bun
-        uses: oven-sh/setup-bun@v1
+        uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
       - id: install-deps
@@ -27,12 +27,13 @@ jobs:
       - id: update-package-version
         name: Update package version
         run: |
-          sed -i "s/\"version\": \".*\"/\"version\": \"${GITHUB_REF_NAME#v}\"/" package.json
+          npm --no-git-tag-version version ${GITHUB_REF_NAME#v}
       - id: build
         name: Build
         run: |
           bun run build
-      - uses: actions/setup-node@v3
+      - uses: actions/setup-node@v7
         with:
           registry-url: "https://registry.npmjs.org"
+          package-manager-cache: false
       - run: npm publish
