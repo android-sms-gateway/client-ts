@@ -34,6 +34,8 @@ jobs:
           bun run build
       - uses: actions/setup-node@v7
         with:
-          registry-url: "https://registry.npmjs.org"
+          node-version: "lts/*"
           package-manager-cache: false
+      - name: Update npm for OIDC support
+        run: npm install -g npm@latest
       - run: npm publish --provenance
