@@ -1,5 +1,7 @@
 export enum ProcessState {
     Pending = "Pending",
+    Cancelling = "Cancelling",
+    Cancelled = "Cancelled",
     Processed = "Processed",
     Sent = "Sent",
     Delivered = "Delivered",
@@ -115,6 +117,11 @@ export enum WebHookEventType {
      * Indicates that an SMS message has failed to be sent.
      */
     SmsFailed = 'sms:failed',
+
+    /**
+     * Indicates that an SMS message has been cancelled.
+     */
+    SmsCancelled = 'sms:cancelled',
 
     /**
      * Indicates that the application has been started.
@@ -678,6 +685,30 @@ export type WebHookPayload =
          * The payload of the event (fully downloaded MMS with attachments).
          */
         payload: MmsDownloadedPayload;
+    } |
+    /**
+     * Represents the payload of a webhook event of type `SmsCancelled`.
+     */
+    {
+        /**
+         * The event type.
+         */
+        event: WebHookEventType.SmsCancelled;
+
+        /**
+         * The payload of the event.
+         */
+        payload: {
+            /**
+             * The message ID.
+             */
+            messageId: string;
+
+            /**
+             * The date and time of when the message was cancelled.
+             */
+            cancelledAt: string;
+        };
     };
 
 type EmptyObject = {
