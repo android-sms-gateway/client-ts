@@ -196,6 +196,19 @@ export class Client {
     }
 
     /**
+     * Cancels a pending message by ID
+     * @param messageId - The ID of the message to cancel
+     */
+    async cancelMessage(messageId: string): Promise<void> {
+        const url = `${this.baseUrl}/message/${messageId}`;
+        const headers = {
+            ...this.defaultHeaders,
+        };
+
+        return this.httpClient.delete<void>(url, headers);
+    }
+
+    /**
      * Retrieves the state of an SMS message from the API
      * @param messageId - The ID of the message to retrieve the state for
      * @returns The state of the message
