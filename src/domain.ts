@@ -130,6 +130,46 @@ export enum WebHookEventType {
      * Indicates that an MMS message has been downloaded and its attachments are available.
      */
     MmsDownloaded = 'mms:downloaded',
+
+    /**
+     * Indicates that a batch of SMS messages has been received.
+     */
+    SmsBatchReceived = 'sms:batch:received',
+
+    /**
+     * Indicates that a batch of data SMS messages has been received.
+     */
+    SmsDataBatchReceived = 'sms:batch:data-received',
+
+    /**
+     * Indicates that a batch of MMS messages has been received.
+     */
+    MmsBatchReceived = 'mms:batch:received',
+
+    /**
+     * Indicates that a batch of MMS messages has been downloaded.
+     */
+    MmsBatchDownloaded = 'mms:batch:downloaded',
+}
+
+/**
+ * Represents the delivery mode for webhooks.
+ */
+export enum WebhookDelivery {
+    /**
+     * Disable webhook delivery.
+     */
+    Disabled = 'Disabled',
+
+    /**
+     * Deliver webhooks individually (one per message).
+     */
+    Individual = 'Individual',
+
+    /**
+     * Deliver webhooks as ordered batches.
+     */
+    Batch = 'Batch',
 }
 
 /**
