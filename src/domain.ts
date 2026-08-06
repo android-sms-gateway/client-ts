@@ -59,9 +59,47 @@ export interface Message {
     id?: string | null;
 
     /**
+     * The optional device ID for explicit device selection.
+     * @default null
+     */
+    deviceId?: string | null;
+
+    /**
      * The message content.
+     * @deprecated Use textMessage or dataMessage
      */
     message: string;
+
+    /**
+     * The text message payload, if the message is a text message.
+     */
+    textMessage?: {
+        /**
+         * The message content.
+         */
+        text: string;
+    } | null;
+
+    /**
+     * The data message payload, if the message is a binary data message.
+     */
+    dataMessage?: {
+        /**
+         * The base64-encoded payload.
+         */
+        data: string;
+
+        /**
+         * The destination port.
+         */
+        port: number;
+    } | null;
+
+    /**
+     * Whether the message content is encrypted.
+     * @default false
+     */
+    isEncrypted?: boolean;
 
     /**
      * The time-to-live (TTL) of the message in seconds.
@@ -206,6 +244,18 @@ export interface Device {
      * The timestamp when the device was deleted (if applicable).
      */
     deletedAt?: string | null;
+
+    /**
+     * The base64 (NO_WRAP) X.509 SPKI DER public key for E2E encryption.
+     * Absent or null for devices without E2E keys.
+     */
+    publicKey?: string | null;
+
+    /**
+     * The key version for rotation tracking (device is the source of truth).
+     * Absent or null for devices without E2E keys.
+     */
+    keyVersion?: number | null;
 }
 
 /**
