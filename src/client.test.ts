@@ -17,6 +17,9 @@ import {
     WebHookEventType,
 } from './domain';
 import { HttpClient } from './http';
+import { E2EErrorCode, decryptValue, splitE2EValue } from './encryption';
+
+import vector from '../test-vectors/e2e-vector-v1.json';
 
 import { beforeEach, describe, expect, it, jest } from "bun:test";
 
@@ -597,6 +600,254 @@ describe('Client', () => {
                 },
             );
             expect(result).toBe(undefined);
+        });
+    });
+
+    // E2E encryption tests
+    describe('Client E2E encryption', () => {
+        let client: Client;
+        let mockHttpClient: HttpClient;
+
+        const deviceWithKey: Device = {
+            id: 'dev-e2e',
+            name: 'E2E Device',
+            createdAt: '2020-01-01T00:00:00Z',
+            lastSeen: '2020-01-01T00:00:00Z',
+            updatedAt: '2020-01-01T00:00:00Z',
+            publicKey: vector.publicKeySpkiBase64,
+            keyVersion: 2,
+        };
+
+        beforeEach(() => {
+            mockHttpClient = {
+                get: jest.fn(),
+                post: jest.fn(),
+                put: jest.fn(),
+                patch: jest.fn(),
+                delete: jest.fn(),
+            } as unknown as HttpClient;
+            client = new Client('login', 'password', mockHttpClient);
+        });
+
+        it('encrypts message body and phone numbers when deviceId is provided', async () => {
+            const message: Message = {
+                message: 'secret message',
+                phoneNumbers: ['+1234567890', '+0987654321'],
+            };
+            const expectedState: MessageState = {
+                id: '123',
+                state: ProcessState.Pending,
+                recipients: [],
+            };
+
+            (mockHttpClient.get as jest.Mock).mockResolvedValue([deviceWithKey]);
+            (mockHttpClient.post as jest.Mock).mockResolvedValue(expectedState);
+
+            const result = await client.send(message, { deviceId: 'dev-e2e' });
+
+            expect(mockHttpClient.get).toHaveBeenCalledWith(
+                `${BASE_URL}/devices`,
+                { "User-Agent": "android-sms-gateway/3.0 (client; js)", Authorization: expect.any(String) },
+            );
+
+            const body = (mockHttpClient.post as jest.Mock).mock.calls[0][1];
+            expect(body).toEqual({
+                message: expect.any(String),
+                phoneNumbers: [expect.any(String), expect.any(String)],
+                isEncrypted: true,
+                deviceId: 'dev-e2e',
+            });
+
+            // body decrypts back to the original values (real encryption, not obfuscation)
+            expect(await decryptValue(vector.privateKeyPem, body.message)).toBe('secret message');
+            expect(await decryptValue(vector.privateKeyPem, body.phoneNumbers[0])).toBe('+1234567890');
+            expect(await decryptValue(vector.privateKeyPem, body.phoneNumbers[1])).toBe('+0987654321');
+
+            // wire format: 7 chunks each
+            expect(splitE2EValue(body.message)).toHaveLength(7);
+            expect(splitE2EValue(body.phoneNumbers[0])).toHaveLength(7);
+            expect(splitE2EValue(body.phoneNumbers[1])).toHaveLength(7);
+
+            // distinct fresh IVs for body and each phone number
+            const ivs = [body.message, body.phoneNumbers[0], body.phoneNumbers[1]]
+                .map((v: string) => splitE2EValue(v)[5]);
+            expect(new Set(ivs).size).toBe(3);
+
+            expect(result).toBe(expectedState);
+        });
+
+        it('falls back to plaintext when the device lacks a publicKey', async () => {
+            const message: Message = { message: 'secret', phoneNumbers: ['+1234567890'] };
+            const deviceWithoutKey: Device = { ...deviceWithKey, publicKey: null, keyVersion: null };
+            const expectedState: MessageState = {
+                id: '123',
+                state: ProcessState.Pending,
+                recipients: [],
+            };
+
+            (mockHttpClient.get as jest.Mock).mockResolvedValue([deviceWithoutKey]);
+            (mockHttpClient.post as jest.Mock).mockResolvedValue(expectedState);
+
+            const result = await client.send(message, { deviceId: 'dev-e2e' });
+
+            expect(mockHttpClient.get).toHaveBeenCalledTimes(1);
+            expect(mockHttpClient.post).toHaveBeenCalledTimes(1);
+            expect(mockHttpClient.post).toHaveBeenCalledWith(
+                `${BASE_URL}/message`,
+                { message: 'secret', phoneNumbers: ['+1234567890'], deviceId: 'dev-e2e' },
+                {
+                    "Content-Type": "application/json",
+                    "User-Agent": "android-sms-gateway/3.0 (client; js)",
+                    Authorization: expect.any(String),
+                },
+            );
+            expect(result).toBe(expectedState);
+        });
+
+        it('falls back to plaintext when the device publicKey is undefined', async () => {
+            const message: Message = { message: 'secret', phoneNumbers: ['+1234567890'] };
+            const deviceWithoutKey: Device = { ...deviceWithKey, publicKey: undefined, keyVersion: undefined };
+            const expectedState: MessageState = {
+                id: '123',
+                state: ProcessState.Pending,
+                recipients: [],
+            };
+
+            (mockHttpClient.get as jest.Mock).mockResolvedValue([deviceWithoutKey]);
+            (mockHttpClient.post as jest.Mock).mockResolvedValue(expectedState);
+
+            const result = await client.send(message, { deviceId: 'dev-e2e' });
+
+            expect(mockHttpClient.get).toHaveBeenCalledTimes(1);
+            expect(mockHttpClient.post).toHaveBeenCalledTimes(1);
+            expect(mockHttpClient.post).toHaveBeenCalledWith(
+                `${BASE_URL}/message`,
+                { message: 'secret', phoneNumbers: ['+1234567890'], deviceId: 'dev-e2e' },
+                expect.any(Object),
+            );
+            expect(result).toBe(expectedState);
+        });
+
+        it('throws a typed error when the device has a publicKey but no keyVersion', async () => {
+            const message: Message = { message: 'secret', phoneNumbers: ['+1234567890'] };
+            const deviceWithoutVersion: Device = { ...deviceWithKey, keyVersion: null };
+
+            (mockHttpClient.get as jest.Mock).mockResolvedValue([deviceWithoutVersion]);
+
+            await expect(client.send(message, { deviceId: 'dev-e2e' })).rejects.toMatchObject({
+                code: E2EErrorCode.E2ENotConfigured,
+            });
+            expect(mockHttpClient.post).not.toHaveBeenCalled();
+        });
+
+        it('throws a typed error when the device is not in the listing', async () => {
+            const message: Message = { message: 'secret', phoneNumbers: ['+1234567890'] };
+
+            (mockHttpClient.get as jest.Mock).mockResolvedValue([]);
+
+            await expect(client.send(message, { deviceId: 'missing-device' })).rejects.toMatchObject({
+                code: E2EErrorCode.DeviceNotFound,
+            });
+            expect(mockHttpClient.post).not.toHaveBeenCalled();
+        });
+
+        it('throws a typed error when deviceId is empty', async () => {
+            const message: Message = { message: 'secret', phoneNumbers: ['+1234567890'] };
+
+            await expect(client.send(message, { deviceId: '' })).rejects.toMatchObject({
+                code: E2EErrorCode.DeviceIDRequired,
+            });
+            expect(mockHttpClient.get).not.toHaveBeenCalled();
+            expect(mockHttpClient.post).not.toHaveBeenCalled();
+        });
+
+        it('sends unencrypted as before when no deviceId is provided (backward compatibility)', async () => {
+            const message: Message = { message: 'Hello', phoneNumbers: ['+1234567890'] };
+            const expectedState: MessageState = {
+                id: '123',
+                state: ProcessState.Pending,
+                recipients: [{ phoneNumber: '+1234567890', state: ProcessState.Pending }],
+            };
+
+            (mockHttpClient.get as jest.Mock).mockResolvedValue([deviceWithKey]);
+            (mockHttpClient.post as jest.Mock).mockResolvedValue(expectedState);
+
+            const result = await client.send(message);
+
+            expect(mockHttpClient.post).toHaveBeenCalledWith(
+                `${BASE_URL}/message`,
+                message,
+                {
+                    "Content-Type": "application/json",
+                    "User-Agent": "android-sms-gateway/3.0 (client; js)",
+                    Authorization: expect.any(String),
+                },
+            );
+            expect(mockHttpClient.get).not.toHaveBeenCalled();
+            expect(result).toBe(expectedState);
+        });
+
+        it('encrypts DataMessage.data with the same scheme and leaves port untouched', async () => {
+            const message: Message = {
+                message: '',
+                phoneNumbers: ['+1234567890'],
+                dataMessage: { data: 'SGVsbG8gV29ybGQh', port: 53739 },
+            };
+            const expectedState: MessageState = {
+                id: '123',
+                state: ProcessState.Pending,
+                recipients: [],
+            };
+
+            (mockHttpClient.get as jest.Mock).mockResolvedValue([deviceWithKey]);
+            (mockHttpClient.post as jest.Mock).mockResolvedValue(expectedState);
+
+            await client.send(message, { deviceId: 'dev-e2e' });
+
+            const body = (mockHttpClient.post as jest.Mock).mock.calls[0][1];
+            expect(body.dataMessage).toEqual({
+                data: expect.any(String),
+                port: 53739,
+            });
+            expect(await decryptValue(vector.privateKeyPem, body.dataMessage.data)).toBe('SGVsbG8gV29ybGQh');
+            expect(body.message).toBe('');
+            expect(body.isEncrypted).toBe(true);
+        });
+
+        it('caches the device listing per deviceId between sends', async () => {
+            const message: Message = { message: 'secret', phoneNumbers: ['+1234567890'] };
+            const expectedState: MessageState = {
+                id: '123',
+                state: ProcessState.Pending,
+                recipients: [],
+            };
+
+            (mockHttpClient.get as jest.Mock).mockResolvedValue([deviceWithKey]);
+            (mockHttpClient.post as jest.Mock).mockResolvedValue(expectedState);
+
+            await client.send(message, { deviceId: 'dev-e2e' });
+            await client.send(message, { deviceId: 'dev-e2e' });
+
+            expect(mockHttpClient.get).toHaveBeenCalledTimes(1);
+            expect(mockHttpClient.post).toHaveBeenCalledTimes(2);
+        });
+
+        it('echoes the encrypted phone string verbatim on status polling', async () => {
+            const encryptedPhone = await (async () => {
+                const { encryptValue } = await import('./encryption');
+                return encryptValue(vector.publicKeySpkiBase64, 2, '+1234567890');
+            })();
+            const expectedState: MessageState = {
+                id: '123',
+                state: ProcessState.Pending,
+                recipients: [{ phoneNumber: encryptedPhone, state: ProcessState.Pending }],
+            };
+
+            (mockHttpClient.get as jest.Mock).mockResolvedValue(expectedState);
+
+            const result = await client.getState('123');
+
+            expect(result.recipients[0].phoneNumber).toBe(encryptedPhone);
         });
     });
 });

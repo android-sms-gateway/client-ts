@@ -13,13 +13,35 @@ import {
     TokenResponse
 } from "./domain";
 import { HttpClient } from "./http";
+import { E2EError, E2EErrorCode, encryptValue } from "./encryption";
+import { TtlCache } from "./cache";
 
 export const BASE_URL = "https://api.sms-gate.app/3rdparty/v1";
+
+/**
+ * Optional parameters for sending a message.
+ */
+export interface SendOptions {
+    /**
+     * Whether to skip phone number validation on the server.
+     */
+    skipPhoneValidation?: boolean;
+
+    /**
+     * The target device ID for E2E encryption. When provided, the SDK resolves
+     * the device from the listing, encrypts the message body and every phone
+     * number with its public key, and sets isEncrypted=true. An empty value
+     * throws a typed {@link E2EError} (code {@link E2EErrorCode.DeviceIDRequired}).
+     * When omitted, the message is sent unencrypted as before.
+     */
+    deviceId?: string;
+}
 
 export class Client {
     private baseUrl: string;
     private httpClient: HttpClient;
     private defaultHeaders: Record<string, string>;
+    private deviceCache = new TtlCache<Device>(60_000);
 
     /**
      * @param login The login to use for authentication, pass empty string for JWT
@@ -179,9 +201,15 @@ export class Client {
      * @param request - The message to send
      * @param options - Optional parameters
      * @param options.skipPhoneValidation - Whether to skip phone number validation
+     * @param options.deviceId - Target device ID; enables E2E encryption against
+     * the device's public key from the listing
      * @returns The state of the message after sending
+     * @throws {E2EError} if E2E is requested (deviceId provided) but the deviceId
+     * is empty, the device is not found, or the device has a publicKey but no
+     * keyVersion; falls back to plaintext (deviceId preserved) when the device
+     * has no public key
      */
-    async send(request: Message, options?: { skipPhoneValidation?: boolean }): Promise<MessageState> {
+    async send(request: Message, options?: SendOptions): Promise<MessageState> {
         const url = new URL(`${this.baseUrl}/message`);
         if (options?.skipPhoneValidation !== undefined) {
             url.searchParams.append('skipPhoneValidation', options.skipPhoneValidation.toString());
@@ -192,7 +220,90 @@ export class Client {
             ...this.defaultHeaders,
         };
 
-        return this.httpClient.post<MessageState>(url.toString(), request, headers);
+        let body: Message = request;
+        if (options?.deviceId !== undefined) {
+            body = await this.prepareE2EMessage(request, options.deviceId);
+        }
+
+        return this.httpClient.post<MessageState>(url.toString(), body, headers);
+    }
+
+    /**
+     * Resolves the target device from the listing and encrypts the message body,
+     * every phone number, and any DataMessage.data with the device's public key.
+     * Falls back to plaintext (deviceId preserved, nothing encrypted) when the
+     * device has no public key.
+     */
+    private async prepareE2EMessage(request: Message, deviceId: string): Promise<Message> {
+        if (!deviceId.trim()) {
+            throw new E2EError(E2EErrorCode.DeviceIDRequired, "deviceId is required for E2E messages");
+        }
+
+        const device = await this.findDevice(deviceId);
+        if (!device) {
+            throw new E2EError(E2EErrorCode.DeviceNotFound, `Device "${deviceId}" not found in the device listing`);
+        }
+        if (!device.publicKey) {
+            return { ...request, deviceId };
+        }
+        if (!device.keyVersion) {
+            throw new E2EError(
+                E2EErrorCode.E2ENotConfigured,
+                `Device "${deviceId}" has a public key but no keyVersion configured`,
+            );
+        }
+
+        const publicKey = device.publicKey;
+        const keyVersion = device.keyVersion;
+
+        const body: Message = {
+            ...request,
+            deviceId,
+            isEncrypted: true,
+            phoneNumbers: [],
+        };
+
+        if (request.message) {
+            body.message = await encryptValue(publicKey, keyVersion, request.message);
+        }
+
+        if (request.textMessage) {
+            body.textMessage = {
+                ...request.textMessage,
+                text: await encryptValue(publicKey, keyVersion, request.textMessage.text),
+            };
+        }
+
+        if (request.dataMessage) {
+            body.dataMessage = {
+                ...request.dataMessage,
+                data: await encryptValue(publicKey, keyVersion, request.dataMessage.data),
+            };
+        }
+
+        for (const phoneNumber of request.phoneNumbers) {
+            body.phoneNumbers.push(await encryptValue(publicKey, keyVersion, phoneNumber));
+        }
+
+        return body;
+    }
+
+    /**
+     * Fetches a device from the listing, caching the result per deviceId for a
+     * short TTL so repeated sends do not re-fetch the listing on every call.
+     */
+    private async findDevice(deviceId: string): Promise<Device | undefined> {
+        const cached = this.deviceCache.get(deviceId);
+        if (cached) {
+            return cached;
+        }
+
+        const devices = await this.getDevices();
+        const device = devices.find((d) => d.id === deviceId);
+        if (device) {
+            this.deviceCache.set(deviceId, device);
+        }
+        return device;
     }
 
     /**
@@ -285,6 +396,8 @@ export class Client {
         const headers = {
             ...this.defaultHeaders,
         };
+
+        this.deviceCache.delete(deviceId);
 
         return this.httpClient.delete<void>(url, headers);
     }
