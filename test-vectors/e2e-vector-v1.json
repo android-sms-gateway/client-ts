@@ -3,6 +3,7 @@
   "format": "rsa-oaep-aes-256-gcm",
   "version": "1",
   "keyVersion": 1,
+  "testOnly": true,
   "algorithms": {
     "rsaOaep": "RSA/ECB/OAEPWithSHA-256AndMGF1Padding",
     "hash": "SHA-256",
@@ -21,6 +22,7 @@
   "ctTagChunkB64": "E2qzO7SQq3jmYfX53p4WTeW5/xSaDjIMS0eK83gbIMZpdY6QzrtruBDLGM24thoL2mxWumLvk9LtQZ0tPm1tWWUipJ5q7Q==",
   "fullFormatSample": "$rsa-oaep-aes-256-gcm$v=1$k=1$we9jv63Er6bukIsgCkorCXDtEx5elni/OeguUvX0shoIQIQxnbr65asrFDRoJJztnEjagR45Oc1zVOwkIpnPXA9cploe7F12IVSc3oeXGWhGMtsbk3rL3PLT2qxgX390+QES4zgaKXULQ5fmmqZPFyEr/5/wQ04Z4i3PsRML5EBzMuD6rLrzrc195KIMiFYJ88AvnQN7Cju3ELvbiiNn7m20zftgcWHmo3VtzC7s1Gs8agPmjepe9GbeTaM3a9vF3qTX0hG6yjaV/tR17opQ16H9KpPGXo9rIrJJ++1olCdYDs/uw1F2iYDULncNs80zj6myn7QM1dvsd3IvBgykiQ==$AAECAwQFBgcICQoL$E2qzO7SQq3jmYfX53p4WTeW5/xSaDjIMS0eK83gbIMZpdY6QzrtruBDLGM24thoL2mxWumLvk9LtQZ0tPm1tWWUipJ5q7Q==",
   "notes": [
+    "DO NOT USE IN PRODUCTION: this file is TEST-ONLY (testOnly: true); privateKeyPem, aesKeyHex, ivHex and plaintext are fixed public constants for cross-language verification only, never real device key material.",
     "RSA-OAEP is randomized per RFC 8017 7.1.2: chunk4 and fullFormatSample are ONE valid sample (generated with a fixed seed for reproducibility); any rand source yields a valid chunk4.",
     "Only ctTagChunkB64 (and chunk6 of fullFormatSample, given the same fixed key+IV+plaintext) is byte-comparable across languages.",
     "Verify chunk4 by RSA-decrypting with privateKeyPem: the result must equal the 32 bytes of aesKeyHex.",

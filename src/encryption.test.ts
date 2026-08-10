@@ -68,6 +68,48 @@ describe("E2E encryption (Web Crypto)", () => {
                 expect((error as E2EError).code).toBe(E2EErrorCode.InvalidFormat);
             }
         });
+
+        it("accepts the canonical format/version chunks (constant-time compare true positive)", () => {
+            expect(() => splitE2EValue(vector.fullFormatSample)).not.toThrow();
+        });
+
+        const expectInvalidFormat = (value: string) => {
+            let error: unknown;
+            try {
+                splitE2EValue(value);
+            } catch (caught) {
+                error = caught;
+            }
+
+            expect(error).toBeInstanceOf(E2EError);
+            expect((error as E2EError).code).toBe(E2EErrorCode.InvalidFormat);
+        };
+
+        it("rejects a same-length format chunk with different bytes (constant-time compare)", () => {
+            const value = vector.fullFormatSample.replace(
+                "$rsa-oaep-aes-256-gcm$",
+                "$RSA-OAEP-AES-256-GCM$",
+            );
+
+            expectInvalidFormat(value);
+        });
+
+        it("rejects a different-length format chunk (constant-time compare)", () => {
+            const value = vector.fullFormatSample.replace(
+                "$rsa-oaep-aes-256-gcm$",
+                "$rsa-oaep-aes-256-gcmX$",
+            );
+
+            expectInvalidFormat(value);
+        });
+
+        it("rejects a non-empty first chunk (leading garbage, constant-time compare)", () => {
+            expectInvalidFormat(`x${vector.fullFormatSample}`);
+        });
+
+        it("rejects an unsupported version chunk (constant-time compare)", () => {
+            expectInvalidFormat(vector.fullFormatSample.replace("v=1", "v=2"));
+        });
     });
 
     describe("vector verification", () => {

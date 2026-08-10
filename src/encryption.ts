@@ -107,6 +107,24 @@ function pemToDer(pem: string): Uint8Array {
 }
 
 /**
+ * Constant-time string equality used for wire-format detection (spec section
+ * 10). Lengths are compared first; both mismatched lengths and mismatched
+ * content yield false without data-dependent branching over the compared
+ * bytes. The format strings are public constants, so this is spec-compliance
+ * only. Works in Node and browsers (no node:crypto dependency).
+ */
+function constantTimeEquals(a: string, b: string): boolean {
+    if (a.length !== b.length) {
+        return false;
+    }
+    let diff = 0;
+    for (let i = 0; i < a.length; i++) {
+        diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+    }
+    return diff === 0;
+}
+
+/**
  * Splits and validates an E2E value, returning its exactly-7 chunks.
  *
  * @throws {E2EError} with code {@link E2EErrorCode.InvalidFormat} when the value
@@ -114,10 +132,14 @@ function pemToDer(pem: string): Uint8Array {
  */
 export function splitE2EValue(value: string): string[] {
     const chunks = value.split("$");
-    if (chunks.length !== 7 || chunks[0] !== "" || chunks[1] !== E2E_FORMAT) {
+    if (
+        chunks.length !== 7
+        || !constantTimeEquals(chunks[0], "")
+        || !constantTimeEquals(chunks[1], E2E_FORMAT)
+    ) {
         throw new E2EError(E2EErrorCode.InvalidFormat, `Invalid E2E value format: ${value.length} chars`);
     }
-    if (chunks[2] !== `v=${E2E_VERSION}`) {
+    if (!constantTimeEquals(chunks[2], `v=${E2E_VERSION}`)) {
         throw new E2EError(E2EErrorCode.InvalidFormat, `Unsupported E2E version: ${chunks[2]}`);
     }
     return chunks;
