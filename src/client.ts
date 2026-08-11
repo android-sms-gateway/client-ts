@@ -252,10 +252,6 @@ export class Client {
      * body is posted verbatim.
      */
     private async prepareEncryptedMessage(request: Message, deviceId: string): Promise<Message> {
-        if (!deviceId.trim()) {
-            throw new EncryptionError("deviceId is required for E2E messages");
-        }
-
         let device: Device | undefined;
         if (this.encryptor.requiresDevice()) {
             device = await this.findDevice(deviceId);
@@ -281,27 +277,39 @@ export class Client {
 
         body.isEncrypted = true;
 
+        const fieldEncryptions: Promise<void>[] = [];
+
         if (request.message) {
-            body.message = await this.encryptor.encrypt(request.message, device);
+            const plaintext = request.message;
+            fieldEncryptions.push(
+                this.encryptor.encrypt(plaintext, device).then((encrypted) => {
+                    body.message = encrypted;
+                }),
+            );
         }
 
         if (request.textMessage) {
-            body.textMessage = {
-                ...request.textMessage,
-                text: await this.encryptor.encrypt(request.textMessage.text, device),
-            };
+            const textMessage = request.textMessage;
+            fieldEncryptions.push(
+                this.encryptor.encrypt(textMessage.text, device).then((encrypted) => {
+                    body.textMessage = { ...textMessage, text: encrypted };
+                }),
+            );
         }
 
         if (request.dataMessage) {
-            body.dataMessage = {
-                ...request.dataMessage,
-                data: await this.encryptor.encrypt(request.dataMessage.data, device),
-            };
+            const dataMessage = request.dataMessage;
+            fieldEncryptions.push(
+                this.encryptor.encrypt(dataMessage.data, device).then((encrypted) => {
+                    body.dataMessage = { ...dataMessage, data: encrypted };
+                }),
+            );
         }
 
-        for (let i = 0; i < body.phoneNumbers.length; i++) {
-            body.phoneNumbers[i] = await this.encryptor.encrypt(body.phoneNumbers[i], device);
-        }
+        body.phoneNumbers = await Promise.all(
+            body.phoneNumbers.map((phoneNumber) => this.encryptor.encrypt(phoneNumber, device)),
+        );
+        await Promise.all(fieldEncryptions);
 
         return body;
     }
@@ -317,11 +325,10 @@ export class Client {
         }
 
         const devices = await this.getDevices();
-        const device = devices.find((d) => d.id === deviceId);
-        if (device) {
-            this.deviceCache.set(deviceId, device);
+        for (const device of devices) {
+            this.deviceCache.set(device.id, device);
         }
-        return device;
+        return devices.find((d) => d.id === deviceId);
     }
 
     /**
@@ -417,7 +424,11 @@ export class Client {
 
         this.deviceCache.delete(deviceId);
 
-        return this.httpClient.delete<void>(url, headers);
+        try {
+            return await this.httpClient.delete<void>(url, headers);
+        } finally {
+            this.deviceCache.delete(deviceId);
+        }
     }
 
     /**

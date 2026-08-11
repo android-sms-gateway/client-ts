@@ -1,7 +1,7 @@
 /**
  * Internal SDK helper: a generic cache that stores values for a fixed
  * time-to-live (TTL), computed at read time. Expired entries are treated as
- * misses but are not eagerly removed.
+ * misses and are evicted on the first expired read.
  */
 export class TtlCache<T> {
     private readonly entries = new Map<string, { value: T; fetchedAt: number }>();
@@ -13,11 +13,15 @@ export class TtlCache<T> {
 
     /**
      * Returns the stored value for the key if it was set less than the TTL
-     * ago, otherwise returns undefined.
+     * ago, otherwise evicts the entry and returns undefined.
      */
     get(key: string): T | undefined {
         const entry = this.entries.get(key);
-        if (!entry || Date.now() - entry.fetchedAt >= this.ttlMs) {
+        if (!entry) {
+            return undefined;
+        }
+        if (Date.now() - entry.fetchedAt >= this.ttlMs) {
+            this.entries.delete(key);
             return undefined;
         }
         return entry.value;

@@ -1,5 +1,6 @@
 import { Device } from "../../domain";
 import { Encryptor } from "../interface";
+import { base64ToBytes, bytesToBase64 } from "../base64";
 
 /**
  * Passphrase encryption for the SMS Gateway SDK (Web Crypto API).
@@ -53,23 +54,14 @@ export class PassphraseMessageEncryptor implements Encryptor {
      * Encodes bytes as standard padded base64 (NO line wrapping).
      */
     public static bytesToBase64(bytes: Uint8Array): string {
-        let binary = "";
-        for (let i = 0; i < bytes.length; i++) {
-            binary += String.fromCharCode(bytes[i]);
-        }
-        return btoa(binary);
+        return bytesToBase64(bytes);
     }
 
     /**
      * Decodes standard padded base64 into bytes.
      */
     public static base64ToBytes(base64: string): Uint8Array {
-        const binary = atob(base64);
-        const bytes = new Uint8Array(binary.length);
-        for (let i = 0; i < binary.length; i++) {
-            bytes[i] = binary.charCodeAt(i);
-        }
-        return bytes;
+        return base64ToBytes(base64);
     }
 
     /**

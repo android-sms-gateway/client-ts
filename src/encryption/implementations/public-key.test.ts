@@ -3,7 +3,7 @@ import { describe, expect, it } from "bun:test";
 import vector from "../../../test-vectors/e2e-vector-v1.json";
 
 import { Device } from "../../domain";
-import { E2EMessageEncryptor } from "./e2e";
+import { E2EMessageEncryptor } from "./public-key";
 import { decryptValue } from "../test-utils";
 
 const deviceWithKey: Device = {

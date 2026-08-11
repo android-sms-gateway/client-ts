@@ -322,4 +322,24 @@ describe("Client encryption orchestration", () => {
         expect(mockHttpClient.post).not.toHaveBeenCalled();
         expect(encryptor.encrypt).not.toHaveBeenCalled();
     });
+
+    it('(l) deleteDevice invalidates the cached device: listing is fetched again on the next send', async () => {
+        const message: Message = { message: 'secret', phoneNumbers: ['+1234567890'] };
+        const encryptor = createSpyEncryptor(true);
+        (mockHttpClient.get as jest.Mock).mockResolvedValue([deviceWithKey]);
+        (mockHttpClient.post as jest.Mock).mockResolvedValue(expectedState());
+        (mockHttpClient.delete as jest.Mock).mockResolvedValue(undefined);
+
+        const client = new Client('login', 'password', mockHttpClient, BASE_URL, encryptor as unknown as Encryptor);
+
+        await client.send(message, { deviceId: 'dev-e2e' });
+        await client.send(message, { deviceId: 'dev-e2e' });
+        expect(mockHttpClient.get).toHaveBeenCalledTimes(1);
+
+        await client.deleteDevice('dev-e2e');
+
+        await client.send(message, { deviceId: 'dev-e2e' });
+        expect(mockHttpClient.get).toHaveBeenCalledTimes(2);
+        expect(mockHttpClient.delete).toHaveBeenCalledTimes(1);
+    });
 });

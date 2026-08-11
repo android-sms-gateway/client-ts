@@ -431,7 +431,7 @@ interface Message {
     id?: string | null;
     deviceId?: string | null;
     /** @deprecated Use textMessage or dataMessage */
-    message: string;
+    message?: string;
     textMessage?: { text: string } | null;
     dataMessage?: { data: string; port: number } | null; // data is base64-encoded
     isEncrypted?: boolean;

@@ -56,9 +56,8 @@ describe("encryption barrel exports", () => {
     });
 
     it("does NOT export the removed test helpers or PlainTextMessageEncryptor from ./encryption", () => {
-        const barrel = require("./index") as Record<string, unknown>;
         for (const name of removedSymbols) {
-            expect(barrel[name]).toBeUndefined();
+            expect((barrel as unknown as Record<string, unknown>)[name]).toBeUndefined();
         }
     });
 

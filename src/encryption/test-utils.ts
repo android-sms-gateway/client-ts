@@ -11,7 +11,7 @@ import {
     E2E_FORMAT,
     E2E_VERSION,
     E2EMessageEncryptor,
-} from "./implementations/e2e";
+} from "./implementations/public-key";
 import { PASS_PHRASE_FORMAT, PassphraseMessageEncryptor } from "./implementations/passphrase";
 
 /**

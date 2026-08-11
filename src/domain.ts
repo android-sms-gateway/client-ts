@@ -68,7 +68,7 @@ export interface Message {
      * The message content.
      * @deprecated Use textMessage or dataMessage
      */
-    message: string;
+    message?: string;
 
     /**
      * The text message payload, if the message is a text message.

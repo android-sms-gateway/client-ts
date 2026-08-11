@@ -17,7 +17,7 @@ export interface Encryptor {
      * Encrypts a single value for the target device.
      *
      * MUST NOT throw when `isConfigured(device)` is false - the value is
-     * returned unchanged (pass-through). MAY throw a typed {@link E2EError}
+     * returned unchanged (pass-through). MAY throw a typed {@link EncryptionError}
      * (E2ENotConfigured) when direct-invoked against a misconfigured device
      * state (e.g. a publicKey without a keyVersion) - listing mode only; in
      * material mode the encryptor is configured by construction and
