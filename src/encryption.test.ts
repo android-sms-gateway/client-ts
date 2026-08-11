@@ -6,19 +6,18 @@ import {
     E2E_FORMAT,
     E2E_PREFIX,
     E2E_VERSION,
-    E2EError,
-    E2EErrorCode,
-    base64ToBytes,
-    bytesToBase64,
+    EncryptionError,
+    E2EMessageEncryptor,
+} from "./encryption";
+import {
     bytesToHex,
     decryptChunk4,
     decryptChunk6,
     decryptValue,
     encryptAESChunk,
-    encryptValue,
     hexToBytes,
     splitE2EValue,
-} from "./encryption";
+} from "./encryption/test-utils";
 
 describe("E2E encryption (Web Crypto)", () => {
     describe("test vector parsing", () => {
@@ -36,7 +35,7 @@ describe("E2E encryption (Web Crypto)", () => {
         });
 
         it("chunk5 decodes to the fixed 12-byte vector IV", () => {
-            const iv = base64ToBytes("AAECAwQFBgcICQoL");
+            const iv = E2EMessageEncryptor.base64ToBytes("AAECAwQFBgcICQoL");
             expect(bytesToHex(iv)).toBe(vector.ivHex);
             expect(iv.length).toBe(12);
         });
@@ -64,8 +63,7 @@ describe("E2E encryption (Web Crypto)", () => {
                     error = caught;
                 }
 
-                expect(error).toBeInstanceOf(E2EError);
-                expect((error as E2EError).code).toBe(E2EErrorCode.InvalidFormat);
+                expect(error).toBeInstanceOf(EncryptionError);
             }
         });
 
@@ -81,8 +79,7 @@ describe("E2E encryption (Web Crypto)", () => {
                 error = caught;
             }
 
-            expect(error).toBeInstanceOf(E2EError);
-            expect((error as E2EError).code).toBe(E2EErrorCode.InvalidFormat);
+            expect(error).toBeInstanceOf(EncryptionError);
         };
 
         it("rejects a same-length format chunk with different bytes (constant-time compare)", () => {
@@ -148,23 +145,23 @@ describe("E2E encryption (Web Crypto)", () => {
 
     describe("encryptValue format", () => {
         it("produces the exact 7-chunk wire format with leading dollar sign", async () => {
-            const value = await encryptValue(vector.publicKeySpkiBase64, 1, vector.plaintext);
+            const value = await E2EMessageEncryptor.encryptValue(vector.publicKeySpkiBase64, 1, vector.plaintext);
 
             expect(value.startsWith(E2E_PREFIX)).toBe(true);
             expect(value).toContain(`v=${E2E_VERSION}$`);
             const chunks = splitE2EValue(value);
             expect(chunks).toHaveLength(7);
             expect(chunks[3]).toBe(`k=${vector.keyVersion}`);
-            expect(base64ToBytes(chunks[5]).length).toBe(12);
+            expect(E2EMessageEncryptor.base64ToBytes(chunks[5]).length).toBe(12);
         });
 
         it("embeds the listing keyVersion verbatim in k=", async () => {
-            const value = await encryptValue(vector.publicKeySpkiBase64, 7, "hello");
+            const value = await E2EMessageEncryptor.encryptValue(vector.publicKeySpkiBase64, 7, "hello");
             expect(splitE2EValue(value)[3]).toBe("k=7");
         });
 
         it("uses NO_WRAP padded base64 without line breaks", async () => {
-            const value = await encryptValue(vector.publicKeySpkiBase64, 1, vector.plaintext);
+            const value = await E2EMessageEncryptor.encryptValue(vector.publicKeySpkiBase64, 1, vector.plaintext);
 
             expect(value).not.toMatch(/[\r\n]/);
             for (const chunk of splitE2EValue(value).slice(4)) {
@@ -173,21 +170,21 @@ describe("E2E encryption (Web Crypto)", () => {
         });
 
         it("chunk4 decodes to exactly 256 bytes (RSA-2048) with padding", async () => {
-            const value = await encryptValue(vector.publicKeySpkiBase64, 1, vector.plaintext);
-            const encAesKey = base64ToBytes(splitE2EValue(value)[4]);
+            const value = await E2EMessageEncryptor.encryptValue(vector.publicKeySpkiBase64, 1, vector.plaintext);
+            const encAesKey = E2EMessageEncryptor.base64ToBytes(splitE2EValue(value)[4]);
 
             expect(encAesKey.length).toBe(256);
             expect(splitE2EValue(value)[4]).toMatch(/={1,2}$/);
         });
 
         it("encrypts an 11-char phone number to ~428 chars", async () => {
-            const value = await encryptValue(vector.publicKeySpkiBase64, 1, "+1234567890");
+            const value = await E2EMessageEncryptor.encryptValue(vector.publicKeySpkiBase64, 1, "+1234567890");
             expect(value.length).toBe(428);
         });
 
         it("chunk4 is randomized across runs (RFC 8017 7.1.2)", async () => {
-            const a = await encryptValue(vector.publicKeySpkiBase64, 1, "same value");
-            const b = await encryptValue(vector.publicKeySpkiBase64, 1, "same value");
+            const a = await E2EMessageEncryptor.encryptValue(vector.publicKeySpkiBase64, 1, "same value");
+            const b = await E2EMessageEncryptor.encryptValue(vector.publicKeySpkiBase64, 1, "same value");
 
             expect(splitE2EValue(a)[4]).not.toBe(splitE2EValue(b)[4]);
             // chunk6 is deterministic for the same plaintext? No: fresh IV changes it too.
@@ -195,10 +192,10 @@ describe("E2E encryption (Web Crypto)", () => {
         });
 
         it("uses a fresh 12-byte CSPRNG IV that never equals the vector IV", async () => {
-            const value = await encryptValue(vector.publicKeySpkiBase64, 1, vector.plaintext);
+            const value = await E2EMessageEncryptor.encryptValue(vector.publicKeySpkiBase64, 1, vector.plaintext);
             const ivB64 = splitE2EValue(value)[5];
 
-            expect(base64ToBytes(ivB64).length).toBe(12);
+            expect(E2EMessageEncryptor.base64ToBytes(ivB64).length).toBe(12);
             expect(ivB64).not.toBe("AAECAwQFBgcICQoL");
         });
     });
@@ -214,13 +211,13 @@ describe("E2E encryption (Web Crypto)", () => {
             ];
 
             for (const plaintext of values) {
-                const encrypted = await encryptValue(vector.publicKeySpkiBase64, 3, plaintext);
+                const encrypted = await E2EMessageEncryptor.encryptValue(vector.publicKeySpkiBase64, 3, plaintext);
                 expect(await decryptValue(vector.privateKeyPem, encrypted)).toBe(plaintext);
             }
         });
 
         it("encryptValue output rejects a 12-byte key: decrypted AES key is always 32 bytes", async () => {
-            const encrypted = await encryptValue(vector.publicKeySpkiBase64, 1, "payload");
+            const encrypted = await E2EMessageEncryptor.encryptValue(vector.publicKeySpkiBase64, 1, "payload");
             const aesKey = await decryptChunk4(vector.privateKeyPem, splitE2EValue(encrypted)[4]);
 
             expect(aesKey.length).toBe(32);
@@ -231,9 +228,9 @@ describe("E2E encryption (Web Crypto)", () => {
         it("round trips arbitrary byte buffers with padding", () => {
             for (const size of [0, 1, 2, 3, 4, 12, 32, 256]) {
                 const bytes = new Uint8Array(size).map((_, i) => i & 0xff);
-                const b64 = bytesToBase64(bytes);
+                const b64 = E2EMessageEncryptor.bytesToBase64(bytes);
                 expect(b64).toMatch(/^(?:[A-Za-z0-9+/]+={0,2})?$/);
-                expect(base64ToBytes(b64)).toEqual(bytes);
+                expect(E2EMessageEncryptor.base64ToBytes(b64)).toEqual(bytes);
             }
         });
     });

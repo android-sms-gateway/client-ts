@@ -17,7 +17,7 @@ import {
     WebHookEventType,
 } from './domain';
 import { HttpClient } from './http';
-import { E2EErrorCode, decryptValue, splitE2EValue } from './encryption';
+import { decryptValue, splitE2EValue } from './encryption/test-utils';
 
 import vector from '../test-vectors/e2e-vector-v1.json';
 
@@ -728,35 +728,37 @@ describe('Client', () => {
             expect(result).toBe(expectedState);
         });
 
-        it('throws a typed error when the device has a publicKey but no keyVersion', async () => {
+        it('throws E2ENotConfigured when the device has a publicKey but no keyVersion, and never posts', async () => {
             const message: Message = { message: 'secret', phoneNumbers: ['+1234567890'] };
-            const deviceWithoutVersion: Device = { ...deviceWithKey, keyVersion: null };
+            const deviceWithoutKeyVersion: Device = { ...deviceWithKey, keyVersion: null };
 
-            (mockHttpClient.get as jest.Mock).mockResolvedValue([deviceWithoutVersion]);
+            (mockHttpClient.get as jest.Mock).mockResolvedValue([deviceWithoutKeyVersion]);
 
             await expect(client.send(message, { deviceId: 'dev-e2e' })).rejects.toMatchObject({
-                code: E2EErrorCode.E2ENotConfigured,
+                message: 'Device "dev-e2e" has a public key but no keyVersion configured',
             });
             expect(mockHttpClient.post).not.toHaveBeenCalled();
         });
 
-        it('throws a typed error when the device is not in the listing', async () => {
+        it('throws DeviceNotFound when the device is not in the listing, and never posts', async () => {
             const message: Message = { message: 'secret', phoneNumbers: ['+1234567890'] };
 
             (mockHttpClient.get as jest.Mock).mockResolvedValue([]);
 
-            await expect(client.send(message, { deviceId: 'missing-device' })).rejects.toMatchObject({
-                code: E2EErrorCode.DeviceNotFound,
+            await expect(client.send(message, { deviceId: 'dev-unknown' })).rejects.toMatchObject({
+                message: 'Device "dev-unknown" not found in the device listing',
             });
             expect(mockHttpClient.post).not.toHaveBeenCalled();
         });
 
-        it('throws a typed error when deviceId is empty', async () => {
+        it('throws DeviceIDRequired for an empty or whitespace deviceId before any resolution or post', async () => {
             const message: Message = { message: 'secret', phoneNumbers: ['+1234567890'] };
 
-            await expect(client.send(message, { deviceId: '' })).rejects.toMatchObject({
-                code: E2EErrorCode.DeviceIDRequired,
-            });
+            for (const deviceId of ['', '   ']) {
+                await expect(client.send(message, { deviceId })).rejects.toMatchObject({
+                    message: 'deviceId is required for E2E messages',
+                });
+            }
             expect(mockHttpClient.get).not.toHaveBeenCalled();
             expect(mockHttpClient.post).not.toHaveBeenCalled();
         });
@@ -834,8 +836,8 @@ describe('Client', () => {
 
         it('echoes the encrypted phone string verbatim on status polling', async () => {
             const encryptedPhone = await (async () => {
-                const { encryptValue } = await import('./encryption');
-                return encryptValue(vector.publicKeySpkiBase64, 2, '+1234567890');
+                const { E2EMessageEncryptor } = await import('./encryption');
+                return E2EMessageEncryptor.encryptValue(vector.publicKeySpkiBase64, 2, '+1234567890');
             })();
             const expectedState: MessageState = {
                 id: '123',

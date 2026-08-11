@@ -7,7 +7,7 @@
 [![GitHub Stars](https://img.shields.io/github/stars/android-sms-gateway/client-ts.svg?style=for-the-badge)](https://github.com/android-sms-gateway/client-ts/stargazers)
 [![TypeScript](https://img.shields.io/badge/%3C%2F%3E-TypeScript-%230074c1.svg?style=for-the-badge)](https://www.typescriptlang.org/)
 
-A TypeScript-first client for seamless integration with the [SMSGate](https://sms-gate.app) API. Send and receive SMS messages programmatically through your Android devices with strict typing and modern JavaScript features.
+A TypeScript-first client library for the [SMSGate](https://sms-gate.app) API. Send and manage SMS messages programmatically through your Android devices with strict typing and modern JavaScript features.
 
 **Note**: The API does not provide CORS headers, so the library cannot be used in a browser environment directly.
 
@@ -31,7 +31,9 @@ A TypeScript-first client for seamless integration with the [SMSGate](https://sm
     - [Log Retrieval](#log-retrieval)
     - [Settings Management](#settings-management)
     - [JWT Token Management](#jwt-token-management)
-    - [E2E Encryption](#e2e-encryption)
+    - [Encryption](#encryption)
+      - [Public Key Encryption](#public-key-encryption)
+      - [Passphrase Encryption](#passphrase-encryption)
     - [HTTP Clients](#http-clients)
     - [Type Definitions](#type-definitions)
   - [⚙️ Configuration](#️-configuration)
@@ -51,19 +53,20 @@ SMSGate JS/TS API Client is the official client library for the SMSGate API. It 
 
 - Send SMS messages through registered Android devices
 - Track message state (pending, sent, delivered, failed, cancelled)
-- Receive messages via webhooks and read the device inbox
+- Receive messages via webhooks and read the device inbox, including MMS attachments
 - Manage devices, webhooks, settings, and JWT tokens
-- Encrypt message content end-to-end with the target device's public key
+- Encrypt message content end-to-end with the target device's public key, or with a shared passphrase
 
 The client is server-side focused, promise-based, and works with any HTTP library.
 
 ## ✨ Features
 
-- **TypeScript Ready**: Full type definitions out of the box
+- **TypeScript Ready**: Full type definitions out of the box (TypeScript ^5 peer dependency)
 - **Flexible HTTP Clients**: Works with any HTTP library (fetch, axios, node-fetch, etc.)
 - **Promise-based API**: Async/await ready
 - **Message Management**: Send, list, filter, and cancel messages
-- **E2E Encryption**: Hybrid RSA-OAEP + AES-256-GCM encryption of message bodies and phone numbers
+- **E2E Encryption**: Hybrid RSA-OAEP + AES-256-GCM encryption of message bodies and phone numbers against a device public key
+- **Passphrase Encryption**: PBKDF2-SHA1 + AES-256-CBC encryption with a shared passphrase, independent of device key material
 - **Webhook Management**: Create, read, and delete webhooks
 - **Device Management**: List and remove devices
 - **Inbox Access**: List incoming messages and download MMS attachments
@@ -78,8 +81,8 @@ The client is server-side focused, promise-based, and works with any HTTP librar
 
 ### Requirements
 
-- Node.js v18+ (the default client uses the global `fetch` API)
-- npm, yarn, or bun package manager
+- Node.js 18+ (the default client uses the global `fetch` API)
+- npm, yarn, or bun package manager to install the package
 - Bun runtime for development (build and test tooling)
 
 ### Installation
@@ -101,11 +104,7 @@ The client supports two authentication methods. It detects the method from the `
 - If `login` is a non-empty string: **Basic Authentication** (username + password)
 - If `login` is an empty string: **JWT Authentication** (bearer token)
 
-JWT is the recommended approach for production environments because it supports scoped permissions and TTL-based expiry.
-
-**Basic Authentication** is simple and suitable for development, testing, and simple integrations.
-
-**JWT Authentication** provides enhanced security and fine-grained access control, suitable for production environments and systems with multiple components needing different access levels.
+Basic Authentication is simple and suitable for development, testing, and simple integrations. JWT is the recommended approach for production environments because it supports scoped permissions and TTL-based expiry.
 
 ### Quickstart
 
@@ -159,7 +158,7 @@ async function sendSMS() {
 
         const message = {
             phoneNumbers: ['+1234567890'],
-            message: 'Secure OTP: 123456'
+            textMessage: { text: 'Secure OTP: 123456' }
         };
 
         const state = await jwtClient.send(message);
@@ -221,6 +220,8 @@ const currentState = await api.getState(state.id);
 await api.cancelMessage(state.id);
 ```
 
+`send()` accepts optional `SendOptions`: `skipPhoneValidation` (skip server-side phone number validation) and `deviceId` (target device; enables encryption, see below).
+
 Note: the top-level `message` field on `Message` is deprecated in favor of `textMessage` (text) and `dataMessage` (binary, base64-encoded `data` with destination `port`).
 
 ### Webhook Management
@@ -248,7 +249,7 @@ api.deleteWebhook('webhook-id')
     .catch(console.error);
 ```
 
-Available webhook events: `sms:received`, `sms:sent`, `sms:delivered`, `sms:failed`, `sms:cancelled`, `system:ping`, `app:started`, `mms:received`, `mms:downloaded` (see `WebHookEventType`).
+Available webhook events (see `WebHookEventType`): `sms:received`, `sms:sent`, `sms:delivered`, `sms:failed`, `sms:cancelled`, `system:ping`, `app:started`, `mms:received`, `mms:downloaded`.
 
 ### Device Management
 
@@ -304,7 +305,7 @@ api.getHealth()
 ### Log Retrieval
 
 ```typescript
-// Get logs
+// Get logs (from/to are optional)
 const from = new Date('2024-01-01T00:00:00Z');
 const to = new Date('2024-01-02T00:00:00Z');
 
@@ -355,9 +356,11 @@ console.log(token.access_token, token.expires_at);
 await api.revokeToken(token.id);
 ```
 
-### E2E Encryption
+### Encryption
 
-Pass `deviceId` in the send options to encrypt a message end-to-end. The client resolves the device from the device listing, encrypts the message body (and every phone number) with the device's public key, and marks the message with `isEncrypted: true`.
+#### Public Key Encryption
+
+Pass `deviceId` in the send options to encrypt a message end-to-end. The client resolves the device from the device listing, encrypts the message body and every phone number with the device's public key, and marks the message with `isEncrypted: true`.
 
 ```typescript
 const state = await api.send(
@@ -371,16 +374,38 @@ const state = await api.send(
 
 The wire format is `$rsa-oaep-aes-256-gcm$v=1$k={keyVersion}${base64(encrypted_aes_key)}${base64(iv)}${base64(ciphertext || tag)}` (hybrid RSA-OAEP/SHA-256 wrapping a fresh AES-256-GCM key per value).
 
-When the target device has no public key, the message is sent in plaintext (the `deviceId` is still preserved for routing). A typed `E2EError` is still thrown when `deviceId` is empty, the device is not found in the listing, or the device has a `publicKey` but no `keyVersion`:
+Behavior by device state:
 
-| Code                 | Meaning                                            |
-| -------------------- | -------------------------------------------------- |
-| `DEVICE_ID_REQUIRED` | `deviceId` is empty or whitespace                  |
-| `DEVICE_NOT_FOUND`   | Device not found in the device listing             |
-| `E2E_NOT_CONFIGURED` | Device has a `publicKey` but no `keyVersion`       |
-| `INVALID_FORMAT`     | Encrypted value does not match the E2E wire format |
+- Device with a `publicKey` and `keyVersion`: the value is encrypted
+- Device without a `publicKey` (or not found): the value is sent in plaintext (pass-through; the `deviceId` is still preserved for routing)
+- Device with a `publicKey` but no `keyVersion`: throws `EncryptionError`
+- Empty or whitespace `deviceId`: throws `EncryptionError`
 
-Device lookups are cached per `deviceId` for 60 seconds to avoid re-fetching the listing on every send.
+All encryption failures throw a single typed `EncryptionError`. Device lookups are cached per `deviceId` for 60 seconds to avoid re-fetching the listing on every send.
+
+The encryptor can also be constructed directly with key material (`E2EMessageEncryptor(publicKey, keyVersion)`), in which case the device listing is not consulted:
+
+```typescript
+import Client, { E2EMessageEncryptor } from 'android-sms-gateway';
+
+const api = new Client('', token, undefined, undefined, new E2EMessageEncryptor(publicKey, keyVersion));
+```
+
+#### Passphrase Encryption
+
+For a shared-secret scheme independent of device key material, use `PassphraseMessageEncryptor` (PBKDF2-SHA1 + AES-256-CBC):
+
+```typescript
+import Client, { PassphraseMessageEncryptor } from 'android-sms-gateway';
+
+const api = new Client('', token, undefined, undefined, new PassphraseMessageEncryptor('my-passphrase'));
+```
+
+- Every encryptable value is encrypted with a key derived from the passphrase, a random 16-byte salt, and the iteration count (default 75,000)
+- Wire format: `$aes-256-cbc/pbkdf2-sha1$i={iterations}${base64(salt)}${base64(ciphertext)}`
+- Device resolution is skipped entirely; pass `deviceId` for routing only
+- Values already in the passphrase wire format pass through and are never re-encrypted
+- The device's own passphrase must match for the gateway to decrypt
 
 ### HTTP Clients
 
@@ -493,7 +518,7 @@ interface TokenResponse {
 }
 ```
 
-For the complete type surface, see [`src/domain.ts`](./src/domain.ts) (webhook event types, webhook payloads, MMS payloads, settings types, enums) and [`src/encryption.ts`](./src/encryption.ts) (E2E helpers and error codes).
+For the complete type surface, see [`src/domain.ts`](./src/domain.ts) (webhook event types, webhook payloads, MMS payloads, settings types, enums) and [`src/encryption/`](./src/encryption/) (encryptors, E2E helpers, and `EncryptionError`).
 
 ## ⚙️ Configuration
 
@@ -507,6 +532,7 @@ The `Client` class accepts the following constructor arguments:
 | `password`   | Password, or JWT token            | **Required**                             |
 | `httpClient` | HTTP client implementation        | fetch-based default                      |
 | `baseUrl`    | API base URL                      | `"https://api.sms-gate.app/3rdparty/v1"` |
+| `encryptor`  | Value-level encryptor             | `E2EMessageEncryptor`                    |
 
 **Basic Authentication:**
 
@@ -524,6 +550,12 @@ const api = new Client(
     "",  // Empty string for login when using JWT
     jwtToken  // JWT token
 );
+```
+
+**Custom base URL (Private Server):**
+
+```typescript
+const api = new Client(login, password, undefined, 'https://your-server.example.com/api');
 ```
 
 ### Environment Variables
@@ -544,7 +576,7 @@ The library itself does not read environment variables; the examples use them as
 - Use appropriate TTL values for JWT tokens based on your security requirements
 - Apply the principle of least privilege when granting token scopes
 - Implement proper token revocation workflows
-- Use E2E encryption (`deviceId` send option) for sensitive message content
+- Use E2E encryption for sensitive message content
 
 ## 📚 API Reference
 
@@ -563,7 +595,7 @@ We welcome contributions! Please follow these steps:
 
 ### Development Setup
 
-The project uses Bun for build and test tooling:
+The project uses Bun for build and test tooling (CI runs `bun test` on Ubuntu and macOS):
 
 ```bash
 git clone https://github.com/android-sms-gateway/client-ts.git
@@ -580,7 +612,9 @@ Distributed under the Apache 2.0 License. See [LICENSE](LICENSE) for more inform
 ## 📞 Contact
 
 - Project homepage: [https://sms-gate.app](https://sms-gate.app)
+- Repository: [https://github.com/android-sms-gateway/client-ts](https://github.com/android-sms-gateway/client-ts)
 - Issues: [GitHub Issues](https://github.com/android-sms-gateway/client-ts/issues)
+- Author: [Aleksandr Soloshenko](https://github.com/capcom6)
 
 ## 🙏 Acknowledgments
 

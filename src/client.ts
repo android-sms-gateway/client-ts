@@ -13,7 +13,7 @@ import {
     TokenResponse
 } from "./domain";
 import { HttpClient } from "./http";
-import { E2EError, E2EErrorCode, encryptValue } from "./encryption";
+import { EncryptionError, E2EMessageEncryptor, Encryptor } from "./encryption";
 import { TtlCache } from "./cache";
 
 export const BASE_URL = "https://api.sms-gate.app/3rdparty/v1";
@@ -28,11 +28,16 @@ export interface SendOptions {
     skipPhoneValidation?: boolean;
 
     /**
-     * The target device ID for E2E encryption. When provided, the SDK resolves
-     * the device from the listing, encrypts the message body and every phone
-     * number with its public key, and sets isEncrypted=true. An empty value
-     * throws a typed {@link E2EError} (code {@link E2EErrorCode.DeviceIDRequired}).
-     * When omitted, the message is sent unencrypted as before.
+     * The target device ID for encryption. When provided, the SDK applies
+     * the configured {@link Encryptor}: when `requiresDevice()` is true the
+     * device is resolved from the listing first, otherwise resolution is
+     * skipped and the encryptor is invoked with `device = undefined` (key
+     * material is carried by the encryptor itself). `isEncrypted` is derived
+     * from a single `isConfigured(device)` call; when configured, every
+     * encryptable field is encrypted via `encrypt(value, device)`. An empty
+     * value throws {@link EncryptionError}; an unknown device throws
+     * {@link EncryptionError} in listing mode only. When omitted, the message
+     * is sent unencrypted without consulting the encryptor.
      */
     deviceId?: string;
 }
@@ -42,21 +47,27 @@ export class Client {
     private httpClient: HttpClient;
     private defaultHeaders: Record<string, string>;
     private deviceCache = new TtlCache<Device>(60_000);
+    private encryptor: Encryptor;
 
     /**
      * @param login The login to use for authentication, pass empty string for JWT
      * @param password The password or JWT to use for authentication
      * @param httpClient The HTTP client to use for requests
      * @param baseUrl The base URL to use for requests. Defaults to {@link BASE_URL}.
+     * @param encryptor The value-level encryptor to use when a deviceId is
+     * provided. Defaults to a new {@link E2EMessageEncryptor}. To send
+     * plaintext, omit SendOptions.deviceId or set Message.deviceId directly.
      */
     constructor(
         login: string,
         password: string,
         httpClient?: HttpClient,
-        baseUrl = BASE_URL
+        baseUrl = BASE_URL,
+        encryptor?: Encryptor
     ) {
         this.baseUrl = baseUrl;
         this.httpClient = httpClient || this.getDefaultHttpClient();
+        this.encryptor = encryptor || new E2EMessageEncryptor();
         this.defaultHeaders = {
             "User-Agent": "android-sms-gateway/3.0 (client; js)",
         };
@@ -201,13 +212,12 @@ export class Client {
      * @param request - The message to send
      * @param options - Optional parameters
      * @param options.skipPhoneValidation - Whether to skip phone number validation
-     * @param options.deviceId - Target device ID; enables E2E encryption against
-     * the device's public key from the listing
+     * @param options.deviceId - Target device ID; enables encryption against
+     * the resolved device (see {@link Encryptor})
      * @returns The state of the message after sending
-     * @throws {E2EError} if E2E is requested (deviceId provided) but the deviceId
-     * is empty, the device is not found, or the device has a publicKey but no
-     * keyVersion; falls back to plaintext (deviceId preserved) when the device
-     * has no public key
+     * @throws {EncryptionError} if the provided deviceId is empty/whitespace,
+     * or - when the encryptor requires device resolution (listing mode) - if
+     * the device is not in the listing.
      */
     async send(request: Message, options?: SendOptions): Promise<MessageState> {
         const url = new URL(`${this.baseUrl}/message`);
@@ -222,67 +232,75 @@ export class Client {
 
         let body: Message = request;
         if (options?.deviceId !== undefined) {
-            body = await this.prepareE2EMessage(request, options.deviceId);
+            body = await this.prepareEncryptedMessage(request, options.deviceId);
         }
 
         return this.httpClient.post<MessageState>(url.toString(), body, headers);
     }
 
     /**
-     * Resolves the target device from the listing and encrypts the message body,
-     * every phone number, and any DataMessage.data with the device's public key.
-     * Falls back to plaintext (deviceId preserved, nothing encrypted) when the
-     * device has no public key.
+     * Applies the configured encryptor at value level. Device resolution is
+     * Client-owned and gated on `requiresDevice()`: true = resolve from the
+     * listing (DeviceNotFound applies), false = skip resolution and pass
+     * `device = undefined` (material/passphrase mode). The `isEncrypted`
+     * flag is derived from a single `isConfigured(device)` call (set to true
+     * IFF configured, OMITTED otherwise - never false; a caller-set
+     * `request.isEncrypted` is overwritten to omitted on a
+     * keyless/unconfigured device so the truthful value wins). When
+     * configured, every encryptable field is encrypted via the per-field
+     * loop with truthiness guards. The request is never mutated; the returned
+     * body is posted verbatim.
      */
-    private async prepareE2EMessage(request: Message, deviceId: string): Promise<Message> {
+    private async prepareEncryptedMessage(request: Message, deviceId: string): Promise<Message> {
         if (!deviceId.trim()) {
-            throw new E2EError(E2EErrorCode.DeviceIDRequired, "deviceId is required for E2E messages");
+            throw new EncryptionError("deviceId is required for E2E messages");
         }
 
-        const device = await this.findDevice(deviceId);
-        if (!device) {
-            throw new E2EError(E2EErrorCode.DeviceNotFound, `Device "${deviceId}" not found in the device listing`);
-        }
-        if (!device.publicKey) {
-            return { ...request, deviceId };
-        }
-        if (!device.keyVersion) {
-            throw new E2EError(
-                E2EErrorCode.E2ENotConfigured,
-                `Device "${deviceId}" has a public key but no keyVersion configured`,
-            );
+        let device: Device | undefined;
+        if (this.encryptor.requiresDevice()) {
+            device = await this.findDevice(deviceId);
+            if (!device) {
+                throw new EncryptionError(`Device "${deviceId}" not found in the device listing`);
+            }
         }
 
-        const publicKey = device.publicKey;
-        const keyVersion = device.keyVersion;
+        const configured = this.encryptor.isConfigured(device);
 
         const body: Message = {
             ...request,
-            deviceId,
-            isEncrypted: true,
-            phoneNumbers: [],
+            deviceId: device?.id ?? deviceId,
+            phoneNumbers: [...request.phoneNumbers],
         };
 
+        if (!configured) {
+            // Truthful value wins (B2 pin): never carry a caller-set
+            // isEncrypted on a plaintext body.
+            delete body.isEncrypted;
+            return body;
+        }
+
+        body.isEncrypted = true;
+
         if (request.message) {
-            body.message = await encryptValue(publicKey, keyVersion, request.message);
+            body.message = await this.encryptor.encrypt(request.message, device);
         }
 
         if (request.textMessage) {
             body.textMessage = {
                 ...request.textMessage,
-                text: await encryptValue(publicKey, keyVersion, request.textMessage.text),
+                text: await this.encryptor.encrypt(request.textMessage.text, device),
             };
         }
 
         if (request.dataMessage) {
             body.dataMessage = {
                 ...request.dataMessage,
-                data: await encryptValue(publicKey, keyVersion, request.dataMessage.data),
+                data: await this.encryptor.encrypt(request.dataMessage.data, device),
             };
         }
 
-        for (const phoneNumber of request.phoneNumbers) {
-            body.phoneNumbers.push(await encryptValue(publicKey, keyVersion, phoneNumber));
+        for (let i = 0; i < body.phoneNumbers.length; i++) {
+            body.phoneNumbers[i] = await this.encryptor.encrypt(body.phoneNumbers[i], device);
         }
 
         return body;
