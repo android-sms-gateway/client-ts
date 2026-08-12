@@ -206,6 +206,18 @@ export interface Device {
      * The timestamp when the device was deleted (if applicable).
      */
     deletedAt?: string | null;
+
+    /**
+     * The base64 (NO_WRAP) X.509 SPKI DER public key for E2E encryption.
+     * Absent or null for devices without E2E keys.
+     */
+    publicKey?: string | null;
+
+    /**
+     * The key version for rotation tracking (device is the source of truth).
+     * Absent or null for devices without E2E keys.
+     */
+    keyVersion?: number | null;
 }
 
 /**
