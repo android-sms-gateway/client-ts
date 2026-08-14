@@ -10,6 +10,7 @@ import {
     LogEntry,
     LogEntryPriority,
     Message,
+    MessagePriority,
     MessageState,
     ProcessState,
     RegisterWebHookRequest,
@@ -102,6 +103,148 @@ describe('Client', () => {
             },
         );
         expect(result).toBe(expectedState);
+    });
+
+    describe('Message fields serialization', () => {
+        const validUntil = new Date('2026-08-17T12:00:00Z');
+        const scheduleAt = new Date('2026-08-17T10:00:00Z');
+
+        function postedBody(): any {
+            return (mockHttpClient.post as jest.Mock).mock.calls[0][1];
+        }
+
+        it('serializes priority, validUntil and scheduleAt for a legacy text message', async () => {
+            const message: Message = {
+                message: 'Hello',
+                phoneNumbers: ['+1234567890'],
+                priority: MessagePriority.Default,
+                validUntil,
+                scheduleAt,
+            };
+            const expectedState: MessageState = {
+                id: '123',
+                state: ProcessState.Pending,
+                recipients: [],
+            };
+
+            (mockHttpClient.post as jest.Mock).mockResolvedValue(expectedState);
+
+            await client.send(message);
+
+            const wire = JSON.stringify(postedBody());
+            expect(JSON.parse(wire)).toEqual({
+                message: 'Hello',
+                phoneNumbers: ['+1234567890'],
+                priority: 0,
+                validUntil: '2026-08-17T12:00:00.000Z',
+                scheduleAt: '2026-08-17T10:00:00.000Z',
+            });
+            expect(typeof JSON.parse(wire).priority).toBe('number');
+            expect(typeof JSON.parse(wire).validUntil).toBe('string');
+            expect(typeof JSON.parse(wire).scheduleAt).toBe('string');
+        });
+
+        it('serializes priority, validUntil and scheduleAt for a textMessage variant', async () => {
+            const message: Message = {
+                message: '',
+                textMessage: { text: 'Hello' },
+                phoneNumbers: ['+1234567890'],
+                priority: 100,
+                validUntil,
+                scheduleAt,
+            };
+            const expectedState: MessageState = {
+                id: '123',
+                state: ProcessState.Pending,
+                recipients: [],
+            };
+
+            (mockHttpClient.post as jest.Mock).mockResolvedValue(expectedState);
+
+            await client.send(message);
+
+            const wire = JSON.stringify(postedBody());
+            expect(wire).toContain('"priority":100');
+            expect(wire).toContain('"validUntil":"2026-08-17T12:00:00.000Z"');
+            expect(wire).toContain('"scheduleAt":"2026-08-17T10:00:00.000Z"');
+        });
+
+        it('serializes priority, validUntil and scheduleAt for a dataMessage variant', async () => {
+            const message: Message = {
+                message: '',
+                dataMessage: { data: 'aGVsbG8=', port: 1234 },
+                phoneNumbers: ['+1234567890'],
+                priority: 127,
+                validUntil,
+                scheduleAt,
+            };
+            const expectedState: MessageState = {
+                id: '123',
+                state: ProcessState.Pending,
+                recipients: [],
+            };
+
+            (mockHttpClient.post as jest.Mock).mockResolvedValue(expectedState);
+
+            await client.send(message);
+
+            const wire = JSON.stringify(postedBody());
+            expect(JSON.parse(wire)).toEqual({
+                message: '',
+                dataMessage: { data: 'aGVsbG8=', port: 1234 },
+                phoneNumbers: ['+1234567890'],
+                priority: 127,
+                validUntil: '2026-08-17T12:00:00.000Z',
+                scheduleAt: '2026-08-17T10:00:00.000Z',
+            });
+        });
+
+        it('serializes a message without the new fields without any of them', async () => {
+            const message: Message = {
+                message: 'Hello',
+                phoneNumbers: ['+1234567890'],
+            };
+            const expectedState: MessageState = {
+                id: '123',
+                state: ProcessState.Pending,
+                recipients: [],
+            };
+
+            (mockHttpClient.post as jest.Mock).mockResolvedValue(expectedState);
+
+            await client.send(message);
+
+            const wire = JSON.stringify(postedBody());
+            expect(wire).not.toContain('priority');
+            expect(wire).not.toContain('validUntil');
+            expect(wire).not.toContain('scheduleAt');
+            expect(JSON.parse(wire)).toEqual({
+                message: 'Hello',
+                phoneNumbers: ['+1234567890'],
+            });
+        });
+
+        it('serializes null validUntil and scheduleAt as JSON null', async () => {
+            const message: Message = {
+                message: 'Hello',
+                phoneNumbers: ['+1234567890'],
+                validUntil: null,
+                scheduleAt: null,
+            };
+            const expectedState: MessageState = {
+                id: '123',
+                state: ProcessState.Pending,
+                recipients: [],
+            };
+
+            (mockHttpClient.post as jest.Mock).mockResolvedValue(expectedState);
+
+            await client.send(message);
+
+            const parsed = JSON.parse(JSON.stringify(postedBody()));
+            expect(parsed.validUntil).toBeNull();
+            expect(parsed.scheduleAt).toBeNull();
+        });
     });
 
     it('gets the state of a message', async () => {

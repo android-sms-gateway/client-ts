@@ -49,9 +49,45 @@ export interface MessageState {
 }
 
 /**
- * Represents an SMS message.
+ * The text message payload of an SMS message.
  */
-export interface Message {
+export interface TextMessagePayload {
+    /**
+     * The message content.
+     */
+    text: string;
+}
+
+/**
+ * The data message payload of a binary SMS message.
+ */
+export interface DataMessagePayload {
+    /**
+     * The base64-encoded payload.
+     */
+    data: string;
+
+    /**
+     * The destination port.
+     */
+    port: number;
+}
+
+/**
+ * Constants for the priority of a message.
+ * Messages with values greater than 99 will bypass limits and delays.
+ */
+export const MessagePriority = {
+    Minimum: -128,
+    Default: 0,
+    BypassThreshold: 100,
+    Maximum: 127,
+} as const;
+
+/**
+ * The fields common to all SMS message variants.
+ */
+interface MessageCommon {
     /**
      * The ID of the message, will be generated if not provided.
      * @default null
@@ -59,9 +95,16 @@ export interface Message {
     id?: string | null;
 
     /**
-     * The message content.
+     * The optional device ID for explicit device selection.
+     * @default null
      */
-    message: string;
+    deviceId?: string | null;
+
+    /**
+     * Whether the message content is encrypted.
+     * @default false
+     */
+    isEncrypted?: boolean;
 
     /**
      * The time-to-live (TTL) of the message in seconds.
@@ -69,6 +112,28 @@ export interface Message {
      * @default null
      */
     ttl?: number | null;
+
+    /**
+     * The priority of the message.
+     * Messages with values greater than 99 will bypass limits and delays.
+     * Must be in the range -128..127.
+     * @default 0
+     */
+    priority?: number;
+
+    /**
+     * The date and time until which the message is valid (RFC3339 date-time).
+     * Mutually exclusive with `ttl`.
+     * @default null
+     */
+    validUntil?: Date | null;
+
+    /**
+     * The date and time to schedule the message delivery at (RFC3339 date-time).
+     * Must be in the future and before or equal to `validUntil`.
+     * @default null
+     */
+    scheduleAt?: Date | null;
 
     /**
      * The phone numbers to send the message to.
@@ -87,6 +152,35 @@ export interface Message {
      * @default true
      */
     withDeliveryReport?: boolean | null;
+}
+
+/**
+ * Represents an SMS message to send.
+ *
+ * Exactly one of the payload fields must be provided:
+ * the legacy `message`, `textMessage`, or `dataMessage`.
+ * The constraint is enforced by the server at runtime,
+ * which rejects requests providing none or more than one
+ * of these fields with a 400 error.
+ */
+export interface Message extends MessageCommon {
+    /**
+     * The message content.
+     * @deprecated Use textMessage
+     */
+    message: string;
+
+    /**
+     * The text message payload.
+     * Must not be provided together with `message` or `dataMessage`.
+     */
+    textMessage?: TextMessagePayload;
+
+    /**
+     * The data message payload.
+     * Must not be provided together with `message` or `textMessage`.
+     */
+    dataMessage?: DataMessagePayload;
 }
 
 /**

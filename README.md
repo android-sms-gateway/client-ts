@@ -97,7 +97,7 @@ bun add android-sms-gateway
 ### Basic Usage
 
 ```typescript
-import Client from 'android-sms-gateway';
+import Client, { MessagePriority } from 'android-sms-gateway';
 
 // First, create a client with Basic Auth to generate a JWT token
 const basicAuthClient = new Client(
@@ -146,7 +146,8 @@ async function sendSMS() {
         
         const message = {
             phoneNumbers: ['+1234567890'],
-            message: 'Secure OTP: 123456 🔐'
+            message: 'Secure OTP: 123456 🔐',
+            priority: MessagePriority.Default
         };
         
         const state = await jwtClient.send(message);
@@ -348,14 +349,104 @@ The client automatically detects which authentication method to use based on the
 ### Type Definitions
 
 ```typescript
-interface Message {
+/**
+ * The fields common to all SMS message variants.
+ */
+interface MessageCommon {
+    /**
+     * The ID of the message, generated if not provided.
+     * @default null
+     */
     id?: string | null;
-    message: string;
+    /**
+     * The optional device ID for explicit device selection.
+     * @default null
+     */
+    deviceId?: string | null;
+    /**
+     * Whether the message content is encrypted.
+     * @default false
+     */
+    isEncrypted?: boolean;
+    /**
+     * The time-to-live (TTL) of the message in seconds.
+     * Conflicts with `validUntil`.
+     * @default null
+     */
     ttl?: number | null;
+    /**
+     * The phone numbers to send the message to.
+     */
     phoneNumbers: string[];
+    /**
+     * The SIM number to send the message from.
+     * @default null
+     */
     simNumber?: number | null;
+    /**
+     * Whether to include a delivery report for the message.
+     * @default true
+     */
     withDeliveryReport?: boolean | null;
+    /**
+     * The message priority, -128..127 (default 0).
+     * Values > 99 bypass sending limits and delays.
+     * @default 0
+     */
+    priority?: number;
+    /**
+     * Valid until (RFC3339 date-time). Conflicts with `ttl`.
+     * @default null
+     */
+    validUntil?: Date | null;
+    /**
+     * Schedule delivery at; must be in the future and <= `validUntil`.
+     * @default null
+     */
+    scheduleAt?: Date | null;
 }
+
+interface TextMessagePayload {
+    text: string;
+}
+
+interface DataMessagePayload {
+    data: string;
+    port: number;
+}
+
+/**
+ * Represents an SMS message to send.
+ * Exactly one of `message`, `textMessage`, or `dataMessage` must be provided;
+ * this constraint is enforced by the server at runtime.
+ */
+interface Message extends MessageCommon {
+    /**
+     * The message content.
+     * @deprecated Use textMessage
+     */
+    message: string;
+    /**
+     * The text message payload.
+     * Must not be provided together with `message` or `dataMessage`.
+     */
+    textMessage?: TextMessagePayload;
+    /**
+     * The data message payload.
+     * Must not be provided together with `message` or `textMessage`.
+     */
+    dataMessage?: DataMessagePayload;
+}
+
+/**
+ * Message priority constants.
+ */
+const MessagePriority = {
+    Minimum: -128,
+    Default: 0,
+    BypassThreshold: 100,
+    Maximum: 127,
+} as const;
 
 interface MessageState {
     id: string;
