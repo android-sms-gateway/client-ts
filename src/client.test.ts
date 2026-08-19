@@ -4,6 +4,8 @@ import {
     DeviceSettings,
     HealthResponse,
     HealthStatus,
+    IncomingMessageType,
+    InboxRefreshRequest,
     LimitPeriod,
     LogEntry,
     LogEntryPriority,
@@ -15,6 +17,8 @@ import {
     TokenResponse,
     WebHook,
     WebHookEventType,
+    WebhookDelivery,
+    resolveWebhookDelivery,
 } from './domain';
 import { HttpClient } from './http';
 
@@ -277,6 +281,142 @@ describe('Client', () => {
             },
         );
         expect(result).toBe(undefined);
+    });
+
+    it('refreshes inbox', async () => {
+        const request: InboxRefreshRequest = {
+            deviceId: 'test-device-id',
+            since: new Date('2025-01-01T00:00:00Z'),
+            until: new Date('2025-01-02T00:00:00Z'),
+            messageTypes: [IncomingMessageType.SMS, IncomingMessageType.DATA_SMS],
+            webhookDelivery: WebhookDelivery.Batch,
+        };
+
+        // Mirrors the real server's 202 Accepted response: empty body, no Content-Type header
+        const empty202 = new Response(null, { status: 202 });
+        expect(empty202.headers.get('Content-Type')).toBeNull();
+        await expect(empty202.text()).resolves.toBe('');
+
+        (mockHttpClient.post as jest.Mock).mockResolvedValue(undefined);
+
+        const result = await client.refreshInbox(request);
+
+        const expectedRequest = {
+            deviceId: 'test-device-id',
+            since: request.since.toISOString(),
+            until: request.until.toISOString(),
+            messageTypes: ['SMS', 'DATA_SMS'],
+            webhookDelivery: 'Batch',
+        };
+
+        expect(mockHttpClient.post).toHaveBeenCalledWith(
+            `${BASE_URL}/inbox/refresh`,
+            expectedRequest,
+            {
+                "Content-Type": "application/json",
+                "User-Agent": "android-sms-gateway/3.0 (client; js)",
+                Authorization: expect.any(String),
+            },
+        );
+        expect(result).toBe(undefined);
+    });
+
+    it('refreshes inbox with a minimal request (Go parity)', async () => {
+        const request: InboxRefreshRequest = {
+            since: new Date('2025-01-01T00:00:00Z'),
+            until: new Date('2025-01-02T00:00:00Z'),
+        };
+
+        (mockHttpClient.post as jest.Mock).mockResolvedValue(undefined);
+
+        await client.refreshInbox(request);
+
+        expect(mockHttpClient.post).toHaveBeenCalledWith(
+            `${BASE_URL}/inbox/refresh`,
+            {
+                since: '2025-01-01T00:00:00.000Z',
+                until: '2025-01-02T00:00:00.000Z',
+            },
+            {
+                "Content-Type": "application/json",
+                "User-Agent": "android-sms-gateway/3.0 (client; js)",
+                Authorization: expect.any(String),
+            },
+        );
+    });
+
+    it('rejects an InboxRefreshRequest missing the required since field', () => {
+        // @ts-expect-error InboxRefreshRequest requires since
+        const missingSince: InboxRefreshRequest = { until: new Date('2025-01-02T00:00:00Z') };
+
+        expect(missingSince.until).toBeInstanceOf(Date);
+    });
+
+    it('handles a 202 Accepted empty-body response through the default HttpClient', async () => {
+        const originalFetch = globalThis.fetch;
+        const fetchMock = jest.fn().mockResolvedValue(new Response(null, { status: 202 }));
+        globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+        try {
+            const defaultClient = new Client('login', 'password');
+            const request: InboxRefreshRequest = {
+                deviceId: 'test-device-id',
+                since: new Date('2025-01-01T00:00:00Z'),
+                until: new Date('2025-01-02T00:00:00Z'),
+                messageTypes: [IncomingMessageType.SMS, IncomingMessageType.DATA_SMS],
+                webhookDelivery: WebhookDelivery.Batch,
+            };
+
+            // 202 Accepted with empty body and no Content-Type: the default
+            // HttpClient text() path resolves to '' without throwing
+            const result: unknown = await defaultClient.refreshInbox(request);
+            expect(result).toBe('');
+
+            const [url, init] = fetchMock.mock.calls[0];
+            expect(url).toBe(`${BASE_URL}/inbox/refresh`);
+            expect(init).toMatchObject({ method: 'POST' });
+            expect(JSON.parse((init as RequestInit).body as string)).toEqual({
+                deviceId: 'test-device-id',
+                since: '2025-01-01T00:00:00.000Z',
+                until: '2025-01-02T00:00:00.000Z',
+                messageTypes: ['SMS', 'DATA_SMS'],
+                webhookDelivery: 'Batch',
+            });
+        } finally {
+            globalThis.fetch = originalFetch;
+        }
+    });
+
+    it('rejects when the server responds with an error status', async () => {
+        const request: InboxRefreshRequest = {
+            since: new Date('2025-01-01T00:00:00Z'),
+            until: new Date('2025-01-02T00:00:00Z'),
+        };
+
+        (mockHttpClient.post as jest.Mock).mockRejectedValue(new Error('HTTP error 500: internal error'));
+
+        let caught: unknown;
+        try {
+            await client.refreshInbox(request);
+        } catch (e) {
+            caught = e;
+        }
+
+        expect(caught).toBeInstanceOf(Error);
+        expect((caught as Error).message).toBe('HTTP error 500: internal error');
+
+        expect(mockHttpClient.post).toHaveBeenCalledWith(
+            `${BASE_URL}/inbox/refresh`,
+            {
+                since: '2025-01-01T00:00:00.000Z',
+                until: '2025-01-02T00:00:00.000Z',
+            },
+            {
+                "Content-Type": "application/json",
+                "User-Agent": "android-sms-gateway/3.0 (client; js)",
+                Authorization: expect.any(String),
+            },
+        );
     });
 
     it('gets logs', async () => {

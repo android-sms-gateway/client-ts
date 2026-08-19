@@ -26,7 +26,7 @@ A TypeScript-first client for seamless integration with the [SMSGate](https://sm
     - [Webhook Management](#webhook-management)
     - [Device Management](#device-management)
     - [Health Check](#health-check)
-    - [Inbox Export](#inbox-export)
+    - [Inbox Refresh](#inbox-refresh)
     - [Log Retrieval](#log-retrieval)
     - [Settings Management](#settings-management)
   - [🤖 Client Guide](#-client-guide)
@@ -219,16 +219,20 @@ api.getHealth()
     .catch(console.error);
 ```
 
-### Inbox Export
+### Inbox Refresh
 
 ```typescript
-// Export inbox messages
+// Refresh inbox messages (async - server returns 202 Accepted and processes in the background)
 const since = new Date('2024-01-01T00:00:00Z');
 const until = new Date('2024-01-02T00:00:00Z');
 
-api.exportInbox({ deviceId: 'device-id', since, until })
-    .then(() => console.log('Inbox export requested'))
-    .catch(console.error);
+await api.refreshInbox({
+    deviceId: 'device-id',
+    since,
+    until,
+    messageTypes: [IncomingMessageType.SMS, IncomingMessageType.MMS],
+    webhookDelivery: WebhookDelivery.Batch, // deliver webhooks for refreshed messages as ordered batches
+});
 ```
 
 ### Log Retrieval
@@ -308,38 +312,38 @@ The client automatically detects which authentication method to use based on the
 
 ### Core Methods
 
-| Method                                                                | Description                   | Returns                   |
-| --------------------------------------------------------------------- | ----------------------------- | ------------------------- |
-| **Messages**                                                          |                               |                           |
-| `send(message: Message, options?: { skipPhoneValidation?: boolean })` | Send SMS message              | `Promise<MessageState>`   |
-| `getState(messageId: string)`                                         | Check message status          | `Promise<MessageState>`   |
-|                                                                       |                               |                           |
-| **Webhooks**                                                          |                               |                           |
-| `getWebhooks()`                                                       | List registered webhooks      | `Promise<WebHook[]>`      |
-| `registerWebhook(request: RegisterWebHookRequest)`                    | Register new webhook          | `Promise<WebHook>`        |
-| `deleteWebhook(webhookId: string)`                                    | Remove webhook                | `Promise<void>`           |
-|                                                                       |                               |                           |
-| **Devices**                                                           |                               |                           |
-| `getDevices()`                                                        | List registered devices       | `Promise<Device[]>`       |
-| `deleteDevice(deviceId: string)`                                      | Remove device                 | `Promise<void>`           |
-|                                                                       |                               |                           |
-| **Health**                                                            |                               |                           |
-| `getHealth()`                                                         | Check system health           | `Promise<HealthResponse>` |
-|                                                                       |                               |                           |
-| **Inbox**                                                             |                               |                           |
-| `exportInbox(request: MessagesExportRequest)`                         | Request inbox messages export | `Promise<void>`           |
-|                                                                       |                               |                           |
-| **Logs**                                                              |                               |                           |
-| `getLogs(from?: Date, to?: Date)`                                     | Get logs within time range    | `Promise<LogEntry[]>`     |
-|                                                                       |                               |                           |
-| **Settings**                                                          |                               |                           |
-| `getSettings()`                                                       | Get settings                  | `Promise<DeviceSettings>` |
-| `updateSettings(settings: DeviceSettings)`                            | Update settings               | `Promise<void>`           |
-| `patchSettings(settings: Partial<DeviceSettings>)`                    | Partially update settings     | `Promise<void>`           |
-|                                                                       |                               |                           |
-| **JWT Token Management**                                              |                               |                           |
-| `generateToken(request: TokenRequest)`                                | Generate new JWT token        | `Promise<TokenResponse>`  |
-| `revokeToken(jti: string)`                                            | Revoke JWT token by ID        | `Promise<void>`           |
+| Method                                                                | Description                                  | Returns                   |
+| --------------------------------------------------------------------- | -------------------------------------------- | ------------------------- |
+| **Messages**                                                          |                                              |                           |
+| `send(message: Message, options?: { skipPhoneValidation?: boolean })` | Send SMS message                             | `Promise<MessageState>`   |
+| `getState(messageId: string)`                                         | Check message status                         | `Promise<MessageState>`   |
+|                                                                       |                                              |                           |
+| **Webhooks**                                                          |                                              |                           |
+| `getWebhooks()`                                                       | List registered webhooks                     | `Promise<WebHook[]>`      |
+| `registerWebhook(request: RegisterWebHookRequest)`                    | Register new webhook                         | `Promise<WebHook>`        |
+| `deleteWebhook(webhookId: string)`                                    | Remove webhook                               | `Promise<void>`           |
+|                                                                       |                                              |                           |
+| **Devices**                                                           |                                              |                           |
+| `getDevices()`                                                        | List registered devices                      | `Promise<Device[]>`       |
+| `deleteDevice(deviceId: string)`                                      | Remove device                                | `Promise<void>`           |
+|                                                                       |                                              |                           |
+| **Health**                                                            |                                              |                           |
+| `getHealth()`                                                         | Check system health                          | `Promise<HealthResponse>` |
+|                                                                       |                                              |                           |
+| **Inbox**                                                             |                                              |                           |
+| `refreshInbox(request: InboxRefreshRequest)`                          | Refresh inbox messages (async, 202 Accepted) | `Promise<void>`           |
+|                                                                       |                                              |                           |
+| **Logs**                                                              |                                              |                           |
+| `getLogs(from?: Date, to?: Date)`                                     | Get logs within time range                   | `Promise<LogEntry[]>`     |
+|                                                                       |                                              |                           |
+| **Settings**                                                          |                                              |                           |
+| `getSettings()`                                                       | Get settings                                 | `Promise<DeviceSettings>` |
+| `updateSettings(settings: DeviceSettings)`                            | Update settings                              | `Promise<void>`           |
+| `patchSettings(settings: Partial<DeviceSettings>)`                    | Partially update settings                    | `Promise<void>`           |
+|                                                                       |                                              |                           |
+| **JWT Token Management**                                              |                                              |                           |
+| `generateToken(request: TokenRequest)`                                | Generate new JWT token                       | `Promise<TokenResponse>`  |
+| `revokeToken(jti: string)`                                            | Revoke JWT token by ID                       | `Promise<void>`           |
 
 ### Type Definitions
 
@@ -402,8 +406,29 @@ interface LogEntry {
 
 interface MessagesExportRequest {
     deviceId: string;
-    since: string;
-    until: string;
+    since: Date;
+    until: Date;
+}
+
+interface InboxRefreshRequest {
+    deviceId?: string;
+    since: Date;
+    until: Date;
+    messageTypes?: IncomingMessageType[];
+    webhookDelivery?: WebhookDelivery;
+}
+
+enum IncomingMessageType {
+    SMS = 'SMS',
+    DATA_SMS = 'DATA_SMS',
+    MMS = 'MMS',
+    MMS_DOWNLOADED = 'MMS_DOWNLOADED',
+}
+
+enum WebhookDelivery {
+    Disabled = 'Disabled',
+    Individual = 'Individual',
+    Batch = 'Batch',
 }
 
 // JWT Authentication Types

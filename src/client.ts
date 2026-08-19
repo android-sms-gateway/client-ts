@@ -7,6 +7,7 @@ import {
     DeviceSettings,
     HealthResponse,
     IncomingMessage,
+    InboxRefreshRequest,
     LogEntry,
     MessagesExportRequest,
     TokenRequest,
@@ -305,6 +306,7 @@ export class Client {
     /**
      * Request inbox messages export
      * @param request - The export request parameters
+     * @deprecated Use {@link refreshInbox} instead.
      */
     async exportInbox(request: MessagesExportRequest): Promise<void> {
         const url = `${this.baseUrl}/inbox/export`;
@@ -320,6 +322,28 @@ export class Client {
         };
 
         return this.httpClient.post<void>(url, exportRequest, headers);
+    }
+
+    /**
+     * Request inbox messages refresh
+     * @param request - The refresh request parameters
+     */
+    async refreshInbox(request: InboxRefreshRequest): Promise<void> {
+        const url = `${this.baseUrl}/inbox/refresh`;
+        const headers = {
+            "Content-Type": "application/json",
+            ...this.defaultHeaders,
+        };
+
+        const refreshRequest = {
+            ...(request.deviceId !== undefined ? { deviceId: request.deviceId } : {}),
+            since: request.since.toISOString(),
+            until: request.until.toISOString(),
+            ...(request.messageTypes !== undefined && request.messageTypes.length > 0 ? { messageTypes: request.messageTypes } : {}),
+            ...(request.webhookDelivery !== undefined ? { webhookDelivery: request.webhookDelivery } : {}),
+        };
+
+        return this.httpClient.post<void>(url, refreshRequest, headers);
     }
 
     /**
