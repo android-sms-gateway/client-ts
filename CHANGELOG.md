@@ -6,9 +6,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### New Features
+
+- **Message state timestamp** — `MessageState.createdAt` reports when a message was created (RFC 3339).
+
+## [4.0.0] - 2026-09-28
+
+### New Features
+
+- **Outgoing MMS** — `Message.mmsMessage` sends an MMS with an optional `subject`, `text`, and base64-encoded `attachments` (`contentType`, `name`, `data`). Unset fields are omitted from the request body.
+
+### Breaking Changes
+
+- **`Message` enforces a single payload** — `Message` is now a union type, so providing more than one of `message`, `textMessage`, `dataMessage`, or `mmsMessage` is a compile-time error instead of a runtime `400`.
+
+## [3.6.1] - 2026-09-22
+
 ### Bug Fixes
 
-- **`send()` always transmits `priority`** — messages sent without an explicit priority now include `priority: 0` on the wire instead of omitting the field, matching the other client libraries byte-for-byte for reliable message-priority handling.
+- **`send()` always transmits `priority`** — messages sent without an explicit priority now include `priority: 0` on the wire instead of omitting the field, matching the other client libraries byte-for-byte.
 
 ## [3.6.0] - 2026-08-20
 
