@@ -1,622 +1,129 @@
-# 📱 SMSGate JS/TS API Client
+# 📱 SMSGate TypeScript Client
 
-[![npm Version](https://img.shields.io/npm/v/android-sms-gateway.svg?style=for-the-badge)](https://www.npmjs.com/package/android-sms-gateway)
-[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg?style=for-the-badge)](https://github.com/android-sms-gateway/client-ts/blob/master/LICENSE)
-[![Downloads](https://img.shields.io/npm/dw/android-sms-gateway.svg?style=for-the-badge)](https://www.npmjs.com/package/android-sms-gateway)
-[![GitHub Issues](https://img.shields.io/github/issues/android-sms-gateway/client-ts.svg?style=for-the-badge)](https://github.com/android-sms-gateway/client-ts/issues)
-[![GitHub Stars](https://img.shields.io/github/stars/android-sms-gateway/client-ts.svg?style=for-the-badge)](https://github.com/android-sms-gateway/client-ts/stargazers)
-[![TypeScript](https://img.shields.io/badge/%3C%2F%3E-TypeScript-%230074c1.svg?style=for-the-badge)](https://www.typescriptlang.org/)
+[![Contributors][contributors-shield]][contributors-url]
+[![Forks][forks-shield]][forks-url]
+[![Stars][stars-shield]][stars-url]
+[![Issues][issues-shield]][issues-url]
+[![License][license-shield]][license-url]
+[![npm Version][version-shield]][version-url]
 
-A TypeScript-first client for seamless integration with the [SMSGate](https://sms-gate.app) API. Programmatically send SMS messages through your Android devices with strict typing and modern JavaScript features.
+A TypeScript-first client for the [SMSGate](https://sms-gate.app) API: send and track SMS messages through your Android devices with strict typing, Basic or JWT authentication, and a pluggable HTTP client. See the [client libraries overview](https://docs.sms-gate.app/integration/client-libraries/) for the full ecosystem.
 
-**Note**: The API doesn't provide CORS headers, so the library cannot be used in a browser environment directly.
+## 📖 About
 
-## 📖 Table of Contents
+`android-sms-gateway` is a typed JS/TS library for the SMSGate 3rd-party API. It covers messages (send, state, listing, cancellation), inbox refresh, devices, webhooks, settings, logs, health checks, and the JWT token lifecycle, with full type definitions and a fetch-based HTTP client that you can replace with any implementation. Designed for server-side (Node.js) use: the API does not provide CORS headers, so the library cannot run in a browser.
 
-- [📱 SMSGate JS/TS API Client](#-smsgate-jsts-api-client)
-  - [📖 Table of Contents](#-table-of-contents)
-  - [🔐 Authentication](#-authentication)
+## 📚 Table of Contents
+
+- [📱 SMSGate TypeScript Client](#-smsgate-typescript-client)
+  - [📖 About](#-about)
+  - [📚 Table of Contents](#-table-of-contents)
+  - [⭐ Features](#-features)
+  - [📦 Installation](#-installation)
+  - [🔑 Authentication](#-authentication)
     - [Basic Authentication](#basic-authentication)
     - [JWT Authentication](#jwt-authentication)
-  - [✨ Features](#-features)
-  - [⚙️ Requirements](#️-requirements)
-  - [📦 Installation](#-installation)
   - [🚀 Quickstart](#-quickstart)
-    - [Basic Usage](#basic-usage)
-    - [Webhook Management](#webhook-management)
-    - [Device Management](#device-management)
-    - [Health Check](#health-check)
-    - [Inbox Refresh](#inbox-refresh)
-    - [Log Retrieval](#log-retrieval)
-    - [Settings Management](#settings-management)
-  - [🤖 Client Guide](#-client-guide)
-    - [Client Configuration](#client-configuration)
-      - [Authentication Configuration](#authentication-configuration)
-    - [Core Methods](#core-methods)
-    - [Type Definitions](#type-definitions)
-  - [🌐 HTTP Clients](#-http-clients)
-  - [🔒 Security Notes](#-security-notes)
-  - [📚 API Reference](#-api-reference)
-  - [👥 Contributing](#-contributing)
-    - [Development Setup](#development-setup)
+  - [💻 Usage](#-usage)
+  - [📖 API Reference](#-api-reference)
+  - [🤝 Contributing](#-contributing)
   - [📄 License](#-license)
 
-## 🔐 Authentication
+## ⭐ Features
 
-The SMSGate client supports two authentication methods: **Basic Authentication** and **JWT (JSON Web Token) Authentication**. JWT is the recommended approach for production environments due to its enhanced security features and support for scoped permissions.
-
-### Basic Authentication
-
-Basic Authentication uses a username and password to access the API. This method is simple but less secure for production use.
-
-**When to use:**
-- Simple integrations
-- Development and testing
-- Legacy systems
-
-### JWT Authentication
-
-JWT Authentication uses bearer tokens with configurable scopes to access the API. This method provides enhanced security and fine-grained access control.
-
-**When to use:**
-- Production environments
-- Applications requiring scoped permissions
-- Systems with multiple components needing different access levels
-
-## ✨ Features
-
-- **TypeScript Ready**: Full type definitions out of the box
-- **Flexible HTTP Clients**: Works with any HTTP library (fetch, axios, node-fetch, etc.)
-- **Promise-based API**: Async/await ready
-- **Webhook Management**: Create, read, and delete webhooks
-- **Device Management**: List and remove devices
-- **Health Check**: Monitor system status
-- **Inbox Export**: Export received messages
-- **Log Retrieval**: Get system logs with time filtering
-- **Settings Management**: Get, update, and partially update settings
-- **Customizable Base URL**: Point to different API endpoints
-- **Server-Side Focus**: Designed for Node.js environments
-
-## ⚙️ Requirements
-
-- Node.js v18+
-- npm/yarn/bun package manager
+- TypeScript-first with full type definitions out of the box
+- Basic and JWT authentication; token generate and revoke
+- Pluggable HTTP client (default: `fetch`)
+- Webhooks, devices, settings, logs, and health checks
+- Inbox refresh with webhook delivery modes
+- Promise-based API, async/await ready
+- Customizable base URL for private deployments
 
 ## 📦 Installation
 
 ```bash
 npm install android-sms-gateway
-# or
-yarn add android-sms-gateway
-# or
-bun add android-sms-gateway
 ```
 
-## 🚀 Quickstart
+Or with yarn (`yarn add android-sms-gateway`) or bun (`bun add android-sms-gateway`). Requires Node.js 18+.
 
-### Basic Usage
+## 🔑 Authentication
+
+Two methods are supported: Basic authentication with account credentials, and JWT bearer tokens with scoped permissions. Pass an empty login string to switch to JWT.
+
+### Basic Authentication
 
 ```typescript
-import Client, { MessagePriority } from 'android-sms-gateway';
+const client = new Client(
+    process.env.ANDROID_SMS_GATEWAY_LOGIN!,
+    process.env.ANDROID_SMS_GATEWAY_PASSWORD!
+);
+```
 
-// First, create a client with Basic Auth to generate a JWT token
-const basicAuthClient = new Client(
+### JWT Authentication
+
+```typescript
+const basicClient = new Client(
     process.env.ANDROID_SMS_GATEWAY_LOGIN!,
     process.env.ANDROID_SMS_GATEWAY_PASSWORD!
 );
 
-// Generate a JWT token with specific scopes
-async function generateJWTToken() {
-    try {
-        const tokenRequest = {
-            scopes: [
-                "messages:send",
-                "messages:read",
-                "devices:list"
-            ],
-            ttl: 3600 // Token expires in 1 hour
-        };
-        
-        const tokenResponse = await basicAuthClient.generateToken(tokenRequest);
-        console.log('JWT Token generated, expires at:', tokenResponse.expires_at);
-        return tokenResponse.access_token;
-    } catch (error) {
-        console.error('Token generation failed:', error);
-        throw error;
-    }
-}
-
-// Initialize client with JWT Authentication
-async function initializeJWTClient() {
-    const jwtToken = await generateJWTToken();
-    
-    // Initialize client with JWT token (empty string for login, token for password)
-    const jwtClient = new Client(
-        "", // Empty string for login when using JWT
-        jwtToken // JWT token
-    );
-    
-    return jwtClient;
-}
-
-// Send message using JWT Authentication
-async function sendSMS() {
-    try {
-        const jwtClient = await initializeJWTClient();
-        
-        const message = {
-            phoneNumbers: ['+1234567890'],
-            message: 'Secure OTP: 123456 🔐',
-            priority: MessagePriority.Default
-        };
-        
-        const state = await jwtClient.send(message);
-        console.log('Message ID:', state.id);
-        
-        // Check status after 5 seconds
-        setTimeout(async () => {
-            const updatedState = await jwtClient.getState(state.id);
-            console.log('Message status:', updatedState.state);
-        }, 5000);
-    } catch (error) {
-        console.error('Sending failed:', error);
-    }
-}
-
-// Revoke a JWT token
-async function revokeJWTToken(jti: string) {
-    try {
-        await basicAuthClient.revokeToken(jti);
-        console.log('JWT token revoked successfully');
-    } catch (error) {
-        console.error('Token revocation failed:', error);
-    }
-}
-
-sendSMS();
-```
-
-### Webhook Management
-
-```typescript
-// Create webhook
-const webhook = {
-    url: 'https://your-api.com/sms-callback',
-    event: WebHookEventType.SmsReceived,
-};
-
-api.registerWebhook(webhook)
-    .then(created => console.log('Webhook created:', created.id))
-    .catch(console.error);
-
-// List webhooks
-api.getWebhooks()
-    .then(webhooks => console.log('Active webhooks:', webhooks.length));
-```
-
-### Device Management
-
-```typescript
-// List devices
-api.getDevices()
-    .then(devices => console.log('Devices:', devices.map(d => d.name)))
-    .catch(console.error);
-
-// Remove a device
-api.deleteDevice('device-id')
-    .then(() => console.log('Device removed'))
-    .catch(console.error);
-```
-
-### Health Check
-
-```typescript
-// Check system health
-api.getHealth()
-    .then(health => {
-        console.log('System status:', health.status);
-        console.log('Checks:', Object.keys(health.checks).length);
-    })
-    .catch(console.error);
-```
-
-### Inbox Refresh
-
-```typescript
-// Refresh inbox messages (async - server returns 202 Accepted and processes in the background)
-const since = new Date('2024-01-01T00:00:00Z');
-const until = new Date('2024-01-02T00:00:00Z');
-
-await api.refreshInbox({
-    deviceId: 'device-id',
-    since,
-    until,
-    messageTypes: [IncomingMessageType.SMS, IncomingMessageType.MMS],
-    webhookDelivery: WebhookDelivery.Batch, // deliver webhooks for refreshed messages as ordered batches
+const token = await basicClient.generateToken({
+    scopes: ['messages:send', 'messages:read'],
+    ttl: 3600,
 });
+
+const jwtClient = new Client('', token.access_token);
 ```
 
-### Log Retrieval
+## 🚀 Quickstart
 
 ```typescript
-// Get logs
-const from = new Date('2024-01-01T00:00:00Z');
-const to = new Date('2024-01-02T00:00:00Z');
+import Client, { MessagePriority } from 'android-sms-gateway';
 
-api.getLogs(from, to)
-    .then(logs => console.log('Logs retrieved:', logs.length))
-    .catch(console.error);
-```
-
-### Settings Management
-
-```typescript
-// Get settings
-api.getSettings()
-    .then(settings => console.log('Settings:', settings))
-    .catch(console.error);
-
-// Update settings
-const newSettings = {
-    messages: { limitPeriod: 'PerDay', limitValue: 100 },
-    webhooks: { internetRequired: true, retryCount: 3 },
-};
-
-api.updateSettings(newSettings)
-    .then(() => console.log('Settings updated'))
-    .catch(console.error);
-
-// Partially update settings
-const partialSettings = {
-    messages: { limitValue: 200 },
-};
-
-api.patchSettings(partialSettings)
-    .then(() => console.log('Settings partially updated'))
-    .catch(console.error);
-```
-
-## 🤖 Client Guide
-
-### Client Configuration
-
-The `Client` class accepts the following constructor arguments:
-
-| Argument     | Description                | Default                                  |
-| ------------ | -------------------------- | ---------------------------------------- |
-| `login`      | Username or empty string   | **Required**                             |
-| `password`   | Password or JWT token      | **Required**                             |
-| `httpClient` | HTTP client implementation | `fetch`                                  |
-| `baseUrl`    | API base URL               | `"https://api.sms-gate.app/3rdparty/v1"` |
-
-#### Authentication Configuration
-
-**Basic Authentication:**
-```typescript
-const api = new Client(
-    process.env.ANDROID_SMS_GATEWAY_LOGIN!,  // Username
-    process.env.ANDROID_SMS_GATEWAY_PASSWORD!  // Password
+const client = new Client(
+    process.env.ANDROID_SMS_GATEWAY_LOGIN!,
+    process.env.ANDROID_SMS_GATEWAY_PASSWORD!
 );
+
+const state = await client.send({
+    phoneNumbers: ['+12025550123'],
+    message: 'Hello from TypeScript',
+    priority: MessagePriority.Default,
+});
+
+console.log('Message ID:', state.id);
 ```
 
-**JWT Authentication:**
-```typescript
-const api = new Client(
-    "",  // Empty string for login when using JWT
-    jwtToken  // JWT token
-);
-```
+## 💻 Usage
 
-The client automatically detects which authentication method to use based on the `login` parameter:
-- If `login` is a non-empty string: Uses Basic Authentication
-- If `login` is an empty string: Uses JWT Authentication with the provided token
+Beyond sending, the client covers message listing and cancellation, inbox listing and refresh, device management, webhooks, settings (get, update, patch), logs, health checks, and the token lifecycle. See [src/client.ts](https://github.com/android-sms-gateway/client-ts/blob/master/src/client.ts) for the complete method list with signatures and [src/domain.ts](https://github.com/android-sms-gateway/client-ts/blob/master/src/domain.ts) for the type definitions. Webhook payload types live in [src/webhooks.ts](https://github.com/android-sms-gateway/client-ts/blob/master/src/webhooks.ts).
 
-### Core Methods
+## 📖 API Reference
 
-| Method                                                                | Description                                  | Returns                   |
-| --------------------------------------------------------------------- | -------------------------------------------- | ------------------------- |
-| **Messages**                                                          |                                              |                           |
-| `send(message: Message, options?: { skipPhoneValidation?: boolean })` | Send SMS message                             | `Promise<MessageState>`   |
-| `getState(messageId: string)`                                         | Check message status                         | `Promise<MessageState>`   |
-|                                                                       |                                              |                           |
-| **Webhooks**                                                          |                                              |                           |
-| `getWebhooks()`                                                       | List registered webhooks                     | `Promise<WebHook[]>`      |
-| `registerWebhook(request: RegisterWebHookRequest)`                    | Register new webhook                         | `Promise<WebHook>`        |
-| `deleteWebhook(webhookId: string)`                                    | Remove webhook                               | `Promise<void>`           |
-|                                                                       |                                              |                           |
-| **Devices**                                                           |                                              |                           |
-| `getDevices()`                                                        | List registered devices                      | `Promise<Device[]>`       |
-| `deleteDevice(deviceId: string)`                                      | Remove device                                | `Promise<void>`           |
-|                                                                       |                                              |                           |
-| **Health**                                                            |                                              |                           |
-| `getHealth()`                                                         | Check system health                          | `Promise<HealthResponse>` |
-|                                                                       |                                              |                           |
-| **Inbox**                                                             |                                              |                           |
-| `refreshInbox(request: InboxRefreshRequest)`                          | Refresh inbox messages (async, 202 Accepted) | `Promise<void>`           |
-|                                                                       |                                              |                           |
-| **Logs**                                                              |                                              |                           |
-| `getLogs(from?: Date, to?: Date)`                                     | Get logs within time range                   | `Promise<LogEntry[]>`     |
-|                                                                       |                                              |                           |
-| **Settings**                                                          |                                              |                           |
-| `getSettings()`                                                       | Get settings                                 | `Promise<DeviceSettings>` |
-| `updateSettings(settings: DeviceSettings)`                            | Update settings                              | `Promise<void>`           |
-| `patchSettings(settings: Partial<DeviceSettings>)`                    | Partially update settings                    | `Promise<void>`           |
-|                                                                       |                                              |                           |
-| **JWT Token Management**                                              |                                              |                           |
-| `generateToken(request: TokenRequest)`                                | Generate new JWT token                       | `Promise<TokenResponse>`  |
-| `revokeToken(jti: string)`                                            | Revoke JWT token by ID                       | `Promise<void>`           |
+- [Official API Reference](https://docs.sms-gate.app/integration/api/) - endpoints, payloads, and error codes
+- [Authentication Guide](https://docs.sms-gate.app/integration/authentication/) - scopes and token management
+- [Client libraries overview](https://docs.sms-gate.app/integration/client-libraries/)
+- [Client source](https://github.com/android-sms-gateway/client-ts/blob/master/src/client.ts) - full method reference and examples
 
-### Type Definitions
+## 🤝 Contributing
 
-```typescript
-/**
- * The fields common to all SMS message variants.
- */
-interface MessageCommon {
-    /**
-     * The ID of the message, generated if not provided.
-     * @default null
-     */
-    id?: string | null;
-    /**
-     * The optional device ID for explicit device selection.
-     * @default null
-     */
-    deviceId?: string | null;
-    /**
-     * Whether the message content is encrypted.
-     * @default false
-     */
-    isEncrypted?: boolean;
-    /**
-     * The time-to-live (TTL) of the message in seconds.
-     * Conflicts with `validUntil`.
-     * @default null
-     */
-    ttl?: number | null;
-    /**
-     * The phone numbers to send the message to.
-     */
-    phoneNumbers: string[];
-    /**
-     * The SIM number to send the message from.
-     * @default null
-     */
-    simNumber?: number | null;
-    /**
-     * Whether to include a delivery report for the message.
-     * @default true
-     */
-    withDeliveryReport?: boolean | null;
-    /**
-     * The message priority, -128..127 (default 0).
-     * Values > 99 bypass sending limits and delays.
-     * @default 0
-     */
-    priority?: number;
-    /**
-     * Valid until (RFC3339 date-time). Conflicts with `ttl`.
-     * @default null
-     */
-    validUntil?: Date | null;
-    /**
-     * Schedule delivery at; must be in the future and <= `validUntil`.
-     * @default null
-     */
-    scheduleAt?: Date | null;
-}
-
-interface TextMessagePayload {
-    text: string;
-}
-
-interface DataMessagePayload {
-    data: string;
-    port: number;
-}
-
-/**
- * Represents an SMS message to send.
- * Exactly one of `message`, `textMessage`, or `dataMessage` must be provided;
- * this constraint is enforced by the server at runtime.
- */
-interface Message extends MessageCommon {
-    /**
-     * The message content.
-     * @deprecated Use textMessage
-     */
-    message: string;
-    /**
-     * The text message payload.
-     * Must not be provided together with `message` or `dataMessage`.
-     */
-    textMessage?: TextMessagePayload;
-    /**
-     * The data message payload.
-     * Must not be provided together with `message` or `textMessage`.
-     */
-    dataMessage?: DataMessagePayload;
-}
-
-/**
- * Message priority constants.
- */
-const MessagePriority = {
-    Minimum: -128,
-    Default: 0,
-    BypassThreshold: 100,
-    Maximum: 127,
-} as const;
-
-interface MessageState {
-    id: string;
-    state: ProcessState;
-    recipients: RecipientState[];
-}
-
-interface WebHook {
-    id: string;
-    event: WebHookEventType;
-    url: string;
-    deviceId: string;
-}
-
-interface Device {
-    id: string;
-    name: string;
-    createdAt: string;
-    lastSeen: string;
-    updatedAt: string;
-    deletedAt?: string | null;
-}
-
-interface DeviceSettings {
-    messages?: SettingsMessages;
-    webhooks?: SettingsWebhooks;
-    gateway?: SettingsGateway;
-    encryption?: SettingsEncryption;
-    logs?: SettingsLogs;
-    ping?: SettingsPing;
-}
-
-interface HealthResponse {
-    status: HealthStatus;
-    version: string;
-    releaseId: number;
-    checks: { [checkName: string]: HealthCheck };
-}
-
-interface LogEntry {
-    id: number;
-    createdAt: string;
-    module: string;
-    priority: LogEntryPriority;
-    message: string;
-    context?: Record<string, string>;
-}
-
-interface MessagesExportRequest {
-    deviceId: string;
-    since: Date;
-    until: Date;
-}
-
-interface InboxRefreshRequest {
-    deviceId?: string;
-    since: Date;
-    until: Date;
-    messageTypes?: IncomingMessageType[];
-    webhookDelivery?: WebhookDelivery;
-}
-
-enum IncomingMessageType {
-    SMS = 'SMS',
-    DATA_SMS = 'DATA_SMS',
-    MMS = 'MMS',
-    MMS_DOWNLOADED = 'MMS_DOWNLOADED',
-}
-
-enum WebhookDelivery {
-    Disabled = 'Disabled',
-    Individual = 'Individual',
-    Batch = 'Batch',
-}
-
-// JWT Authentication Types
-
-interface TokenRequest {
-    /**
-     * The scopes to include in the token.
-     */
-    scopes: string[];
-
-    /**
-     * The time-to-live (TTL) of the token in seconds.
-     */
-    ttl?: number;
-}
-
-interface TokenResponse {
-    /**
-     * The JWT access token.
-     */
-    access_token: string;
-
-    /**
-     * The type of the token.
-     */
-    token_type: string;
-
-    /**
-     * The unique identifier of the token.
-     */
-    id: string;
-
-    /**
-     * The expiration time of the token.
-     */
-    expires_at: string;
-}
-```
-
-For more details, see the [`domain.ts`](./src/domain.ts).
-
-## 🌐 HTTP Clients
-
-The library comes with fetch-based built-in HTTP client. You can provide your own implementation of the `HttpClient` interface:
-
-```typescript
-interface HttpClient {
-    get<T>(url: string, headers?: Record<string, string>): Promise<T>;
-    post<T>(url: string, body: any, headers?: Record<string, string>): Promise<T>;
-    put<T>(url: string, body: any, headers?: Record<string, string>): Promise<T>;
-    patch<T>(url: string, body: any, headers?: Record<string, string>): Promise<T>;
-    delete<T>(url: string, headers?: Record<string, string>): Promise<T>;
-}
-```
-
-## 🔒 Security Notes
-
-⚠️ **Important Security Practices**
-
-- Always store credentials in environment variables
-- Never expose credentials in client-side code
-- Use HTTPS for all production communications
-- Rotate passwords regularly
-- Use strong, unique passwords
-- Use appropriate TTL values based on your security requirements
-- Apply the principle of least privilege
-- Implement proper token revocation workflows
-
-## 📚 API Reference
-
-For complete API documentation including all available methods, request/response schemas, and error codes, visit:
-[📘 Official API Documentation](https://docs.sms-gate.app/integration/api/)
-
-## 👥 Contributing
-
-We welcome contributions! Please follow these steps:
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
-
-### Development Setup
-
-```bash
-git clone https://github.com/android-sms-gateway/client-ts.git
-cd client-ts
-bun install
-bun run build
-bun test
-```
+Contributions are welcome. Open an issue to discuss major changes before submitting a pull request; PRs target the `master` branch.
 
 ## 📄 License
 
-Distributed under the Apache 2.0 License. See [LICENSE](LICENSE) for more information.
+Distributed under the Apache License 2.0. See [LICENSE](https://github.com/android-sms-gateway/client-ts/blob/master/LICENSE).
 
----
-
-**Note**: Android is a trademark of Google LLC. This project is not affiliated with or endorsed by Google.
+<!-- Badge references: Shields.io style=for-the-badge is mandatory -->
+[contributors-shield]: https://img.shields.io/github/contributors/android-sms-gateway/client-ts?style=for-the-badge
+[contributors-url]: https://github.com/android-sms-gateway/client-ts/graphs/contributors
+[forks-shield]: https://img.shields.io/github/forks/android-sms-gateway/client-ts?style=for-the-badge
+[forks-url]: https://github.com/android-sms-gateway/client-ts/network/members
+[stars-shield]: https://img.shields.io/github/stars/android-sms-gateway/client-ts?style=for-the-badge
+[stars-url]: https://github.com/android-sms-gateway/client-ts/stargazers
+[issues-shield]: https://img.shields.io/github/issues/android-sms-gateway/client-ts?style=for-the-badge
+[issues-url]: https://github.com/android-sms-gateway/client-ts/issues
+[license-shield]: https://img.shields.io/github/license/android-sms-gateway/client-ts?style=for-the-badge
+[license-url]: https://github.com/android-sms-gateway/client-ts/blob/master/LICENSE
+[version-shield]: https://img.shields.io/npm/v/android-sms-gateway?style=for-the-badge
+[version-url]: https://www.npmjs.com/package/android-sms-gateway
