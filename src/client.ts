@@ -2,6 +2,7 @@ import {
     Message,
     MessagePriority,
     MessageState,
+    MmsMessagePayload,
     RegisterWebHookRequest,
     WebHook,
     Device,

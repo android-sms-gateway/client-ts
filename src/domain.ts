@@ -74,6 +74,55 @@ export interface DataMessagePayload {
 }
 
 /**
+ * A single attachment of an MMS message.
+ */
+export interface MmsAttachment {
+    /**
+     * The MIME type of the attachment (e.g. `image/png`).
+     */
+    contentType: string;
+
+    /**
+     * The optional file name of the attachment.
+     * Omitted from the wire body when not set.
+     * @default null
+     */
+    name?: string | null;
+
+    /**
+     * The base64-encoded attachment content.
+     */
+    data: string;
+}
+
+/**
+ * The MMS message payload of a message.
+ *
+ * `attachments` is omitted from the wire body entirely when empty.
+ * `subject` and `text` are omitted when not set.
+ */
+export interface MmsMessagePayload {
+    /**
+     * The optional subject of the MMS.
+     * @default null
+     */
+    subject?: string | null;
+
+    /**
+     * The optional text body of the MMS.
+     * @default null
+     */
+    text?: string | null;
+
+    /**
+     * The list of attachments.
+     * Omitted from the wire body entirely when empty.
+     * @default null
+     */
+    attachments?: MmsAttachment[] | null;
+}
+
+/**
  * Constants for the priority of a message.
  * Messages with values greater than 99 will bypass limits and delays.
  */
@@ -155,33 +204,60 @@ interface MessageCommon {
 }
 
 /**
- * Represents an SMS message to send.
+ * Represents an SMS or MMS message to send.
  *
  * Exactly one of the payload fields must be provided:
- * the legacy `message`, `textMessage`, or `dataMessage`.
- * The constraint is enforced by the server at runtime,
+ * `message`, `textMessage`, `dataMessage`, or `mmsMessage`.
+ * The constraint is enforced at compile time and by the server at runtime,
  * which rejects requests providing none or more than one
  * of these fields with a 400 error.
  */
-export interface Message extends MessageCommon {
-    /**
-     * The message content.
-     * @deprecated Use textMessage
-     */
-    message: string;
+export type Message = MessageCommon &
+    (
+        | {
+              /**
+               * The message content.
+               * @deprecated Use textMessage
+               */
+              message: string;
 
-    /**
-     * The text message payload.
-     * Must not be provided together with `message` or `dataMessage`.
-     */
-    textMessage?: TextMessagePayload;
+              textMessage?: never;
+              dataMessage?: never;
+              mmsMessage?: never;
+          }
+        | {
+              /**
+               * The text message payload.
+               * Must not be provided together with `message` or `dataMessage`.
+               */
+              textMessage: TextMessagePayload;
 
-    /**
-     * The data message payload.
-     * Must not be provided together with `message` or `textMessage`.
-     */
-    dataMessage?: DataMessagePayload;
-}
+              message?: never;
+              dataMessage?: never;
+              mmsMessage?: never;
+          }
+        | {
+              /**
+               * The data message payload.
+               * Must not be provided together with `message` or `textMessage`.
+               */
+              dataMessage: DataMessagePayload;
+
+              message?: never;
+              textMessage?: never;
+              mmsMessage?: never;
+          }
+        | {
+              /**
+               * The MMS message payload.
+               */
+              mmsMessage: MmsMessagePayload;
+
+              message?: never;
+              textMessage?: never;
+              dataMessage?: never;
+          }
+    );
 
 /**
  * Represents the type of events that can trigger a webhook.

@@ -10,6 +10,7 @@ import {
     LogEntry,
     LogEntryPriority,
     Message,
+    MmsAttachment,
     MessagePriority,
     MessageState,
     ProcessState,
@@ -19,7 +20,6 @@ import {
     WebHook,
     WebHookEventType,
     WebhookDelivery,
-    resolveWebhookDelivery,
 } from './domain';
 import { HttpClient } from './http';
 
@@ -241,6 +241,137 @@ describe('Client', () => {
             const parsed = JSON.parse(JSON.stringify(postedBody()));
             expect(parsed.validUntil).toBeNull();
             expect(parsed.scheduleAt).toBeNull();
+        });
+
+        it('serializes a fully-populated mmsMessage byte-for-byte matching the locked client-go fixture', async () => {
+            const message: Message = {
+                mmsMessage: {
+                    subject: 'Hello',
+                    text: 'World',
+                    attachments: [
+                        { contentType: 'image/png', name: 'picture.png', data: 'BASE64DATA' },
+                    ],
+                },
+                phoneNumbers: ['+1234567890'],
+            };
+            const expectedState: MessageState = {
+                id: '123',
+                state: ProcessState.Pending,
+                recipients: [],
+            };
+
+            (mockHttpClient.post as jest.Mock).mockResolvedValue(expectedState);
+
+            await client.send(message);
+
+            const wire = JSON.stringify(postedBody());
+            // The mmsMessage payload equals the locked fixture string byte-for-byte
+            // (Go json tags: subject/text/name omitempty, attachments omitempty).
+            expect(JSON.stringify(JSON.parse(wire).mmsMessage)).toBe(
+                '{"subject":"Hello","text":"World","attachments":[{"contentType":"image/png","name":"picture.png","data":"BASE64DATA"}]}',
+            );
+            expect(wire).toBe(
+                '{"mmsMessage":{"subject":"Hello","text":"World","attachments":[{"contentType":"image/png","name":"picture.png","data":"BASE64DATA"}]},"phoneNumbers":["+1234567890"],"priority":0}',
+            );
+        });
+
+        it('omits attachments from the wire when none are provided', async () => {
+            const message: Message = {
+                mmsMessage: { subject: 'Hello', text: 'World' },
+                phoneNumbers: ['+1234567890'],
+            };
+            const expectedState: MessageState = {
+                id: '123',
+                state: ProcessState.Pending,
+                recipients: [],
+            };
+
+            (mockHttpClient.post as jest.Mock).mockResolvedValue(expectedState);
+
+            await client.send(message);
+
+            const wire = JSON.stringify(postedBody());
+            expect(wire).not.toContain('attachments');
+            expect(wire).toBe(
+                '{"mmsMessage":{"subject":"Hello","text":"World"},"phoneNumbers":["+1234567890"],"priority":0}',
+            );
+        });
+
+        it('omits unset subject and text from the wire for an attachments-only mmsMessage', async () => {
+            const message: Message = {
+                mmsMessage: {
+                    attachments: [
+                        { contentType: 'image/png', data: 'BASE64DATA' },
+                    ],
+                },
+                phoneNumbers: ['+1234567890'],
+            };
+            const expectedState: MessageState = {
+                id: '123',
+                state: ProcessState.Pending,
+                recipients: [],
+            };
+
+            (mockHttpClient.post as jest.Mock).mockResolvedValue(expectedState);
+
+            await client.send(message);
+
+            const wire = JSON.stringify(postedBody());
+            expect(wire).not.toContain('subject');
+            expect(wire).not.toContain('text');
+            expect(wire).not.toContain('"name"');
+            expect(wire).toBe(
+                '{"mmsMessage":{"attachments":[{"contentType":"image/png","data":"BASE64DATA"}]},"phoneNumbers":["+1234567890"],"priority":0}',
+            );
+        });
+
+        it('rejects an mmsMessage combined with the legacy message field', () => {
+            // @ts-expect-error Message allows exactly one payload variant
+            const mmsWithMessage: Message = {
+                message: 'Hello',
+                mmsMessage: { subject: 'Hi', text: 'There' },
+                phoneNumbers: ['+1234567890'],
+            };
+
+            expect(mmsWithMessage.mmsMessage).toBeDefined();
+        });
+
+        it('rejects an mmsMessage combined with textMessage', () => {
+            // @ts-expect-error Message allows exactly one payload variant
+            const mmsWithTextMessage: Message = {
+                textMessage: { text: 'Hello' },
+                mmsMessage: { subject: 'Hi', text: 'There' },
+                phoneNumbers: ['+1234567890'],
+            };
+
+            expect(mmsWithTextMessage.mmsMessage).toBeDefined();
+        });
+
+        it('rejects an mmsMessage combined with dataMessage', () => {
+            // @ts-expect-error Message allows exactly one payload variant
+            const mmsWithDataMessage: Message = {
+                dataMessage: { data: 'aGVsbG8=', port: 1234 },
+                mmsMessage: { subject: 'Hi', text: 'There' },
+                phoneNumbers: ['+1234567890'],
+            };
+
+            expect(mmsWithDataMessage.mmsMessage).toBeDefined();
+        });
+
+        it('rejects a Message without any payload variant', () => {
+            // @ts-expect-error Message requires exactly one of message/textMessage/dataMessage/mmsMessage
+            const emptyMessage: Message = {
+                phoneNumbers: ['+1234567890'],
+            };
+
+            expect(emptyMessage.phoneNumbers).toEqual(['+1234567890']);
+        });
+
+        it('rejects an MmsAttachment missing the required data field', () => {
+            // @ts-expect-error MmsAttachment requires data
+            const missingDataAttachment: MmsAttachment = { contentType: 'image/png' };
+
+            expect(missingDataAttachment.contentType).toBe('image/png');
         });
     });
 
