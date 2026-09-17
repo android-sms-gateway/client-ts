@@ -62,7 +62,7 @@ describe('Client', () => {
 
         expect(mockHttpClient.post).toHaveBeenCalledWith(
             `${BASE_URL}/message`,
-            message,
+            { ...message, priority: 0 },
             {
                 "Content-Type": "application/json",
                 "User-Agent": "android-sms-gateway/3.0 (client; js)",
@@ -95,7 +95,7 @@ describe('Client', () => {
         const url = new URL(`${BASE_URL}/message?skipPhoneValidation=true`);
         expect(mockHttpClient.post).toHaveBeenCalledWith(
             url.toString(),
-            message,
+            { ...message, priority: 0 },
             {
                 "Content-Type": "application/json",
                 "User-Agent": "android-sms-gateway/3.0 (client; js)",
@@ -146,7 +146,6 @@ describe('Client', () => {
 
         it('serializes priority, validUntil and scheduleAt for a textMessage variant', async () => {
             const message: Message = {
-                message: '',
                 textMessage: { text: 'Hello' },
                 phoneNumbers: ['+1234567890'],
                 priority: 100,
@@ -171,7 +170,6 @@ describe('Client', () => {
 
         it('serializes priority, validUntil and scheduleAt for a dataMessage variant', async () => {
             const message: Message = {
-                message: '',
                 dataMessage: { data: 'aGVsbG8=', port: 1234 },
                 phoneNumbers: ['+1234567890'],
                 priority: 127,
@@ -190,7 +188,6 @@ describe('Client', () => {
 
             const wire = JSON.stringify(postedBody());
             expect(JSON.parse(wire)).toEqual({
-                message: '',
                 dataMessage: { data: 'aGVsbG8=', port: 1234 },
                 phoneNumbers: ['+1234567890'],
                 priority: 127,
@@ -199,7 +196,7 @@ describe('Client', () => {
             });
         });
 
-        it('serializes a message without the new fields without any of them', async () => {
+        it('serializes a message without validUntil/scheduleAt, still emitting priority 0', async () => {
             const message: Message = {
                 message: 'Hello',
                 phoneNumbers: ['+1234567890'],
@@ -215,13 +212,13 @@ describe('Client', () => {
             await client.send(message);
 
             const wire = JSON.stringify(postedBody());
-            expect(wire).not.toContain('priority');
-            expect(wire).not.toContain('validUntil');
-            expect(wire).not.toContain('scheduleAt');
             expect(JSON.parse(wire)).toEqual({
                 message: 'Hello',
                 phoneNumbers: ['+1234567890'],
+                priority: 0,
             });
+            expect(wire).not.toContain('validUntil');
+            expect(wire).not.toContain('scheduleAt');
         });
 
         it('serializes null validUntil and scheduleAt as JSON null', async () => {
@@ -670,7 +667,7 @@ describe('Client', () => {
 
             expect(mockHttpClient.post).toHaveBeenCalledWith(
                 `${BASE_URL}/message`,
-                message,
+                { ...message, priority: 0 },
                 {
                     "Content-Type": "application/json",
                     "User-Agent": "android-sms-gateway/3.0 (client; js)",
@@ -756,7 +753,7 @@ describe('Client', () => {
 
             expect(mockHttpClient.post).toHaveBeenCalledWith(
                 `${BASE_URL}/message`,
-                message,
+                { ...message, priority: 0 },
                 {
                     "Content-Type": "application/json",
                     "User-Agent": "android-sms-gateway/3.0 (client; js)",

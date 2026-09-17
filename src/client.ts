@@ -1,5 +1,6 @@
 import {
     Message,
+    MessagePriority,
     MessageState,
     RegisterWebHookRequest,
     WebHook,
@@ -193,7 +194,11 @@ export class Client {
             ...this.defaultHeaders,
         };
 
-        return this.httpClient.post<MessageState>(url.toString(), request, headers);
+        // Go wire parity: Message.Priority has no omitempty and always
+        // serializes (zero value 0). Mirror client-go byte-for-byte.
+        const body: Message = { ...request, priority: request.priority ?? MessagePriority.Default };
+
+        return this.httpClient.post<MessageState>(url.toString(), body, headers);
     }
 
     /**
