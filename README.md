@@ -34,6 +34,10 @@ A TypeScript-first client for the [SMSGate](https://sms-gate.app) API: send and 
 - TypeScript-first with full type definitions out of the box
 - Basic and JWT authentication; token generate and revoke
 - Pluggable HTTP client (default: `fetch`)
+- Message priority, scheduling, and expiry
+- Text and binary data message payloads
+- Message listing with filters and pagination, and pending message cancellation
+- Inbox listing with MMS attachment metadata and attachment download
 - Webhooks, devices, settings, logs, and health checks
 - Inbox refresh with webhook delivery modes
 - Promise-based API, async/await ready
@@ -97,7 +101,9 @@ console.log('Message ID:', state.id);
 
 ## 💻 Usage
 
-Beyond sending, the client covers message listing and cancellation, inbox listing and refresh, device management, webhooks, settings (get, update, patch), logs, health checks, and the token lifecycle. See [src/client.ts](https://github.com/android-sms-gateway/client-ts/blob/master/src/client.ts) for the complete method list with signatures and [src/domain.ts](https://github.com/android-sms-gateway/client-ts/blob/master/src/domain.ts) for the type definitions. Webhook payload types live in [src/webhooks.ts](https://github.com/android-sms-gateway/client-ts/blob/master/src/webhooks.ts).
+Beyond sending, the client covers message listing and cancellation, inbox listing (with MMS attachment metadata) and refresh, MMS attachment download by message and part ID, device management, webhooks, settings (get, update, patch), logs, health checks, and the token lifecycle. 
+
+See [src/client.ts](https://github.com/android-sms-gateway/client-ts/blob/master/src/client.ts) for the complete method list with signatures and [src/domain.ts](https://github.com/android-sms-gateway/client-ts/blob/master/src/domain.ts) for the type definitions. Webhook payload types live in [src/webhooks.ts](https://github.com/android-sms-gateway/client-ts/blob/master/src/webhooks.ts).
 
 ## 📖 API Reference
 
