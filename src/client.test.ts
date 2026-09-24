@@ -271,6 +271,79 @@ describe('Client', () => {
         expect(result).toBe(expectedState);
     });
 
+    describe('MessageState createdAt pass-through', () => {
+        it('getState passes through a createdAt timestamp from the wire JSON', async () => {
+            const wire = JSON.stringify({
+                id: '123',
+                state: ProcessState.Pending,
+                recipients: [],
+                createdAt: '2026-08-23T10:00:00+03:00',
+            });
+
+            (mockHttpClient.get as jest.Mock).mockResolvedValue(JSON.parse(wire));
+
+            const result = await client.getState('123');
+
+            expect(result.createdAt).toBe('2026-08-23T10:00:00+03:00');
+        });
+
+        it('listMessages passes through createdAt timestamps from the wire JSON', async () => {
+            const wire = JSON.stringify([
+                {
+                    id: '123',
+                    state: ProcessState.Pending,
+                    recipients: [],
+                    createdAt: '2026-08-23T07:00:00Z',
+                },
+                {
+                    id: '124',
+                    state: ProcessState.Sent,
+                    recipients: [],
+                    createdAt: '2026-08-23T11:30:00+02:00',
+                },
+            ]);
+
+            (mockHttpClient.get as jest.Mock).mockResolvedValue(JSON.parse(wire));
+
+            const result = await client.listMessages();
+
+            expect(result[0].createdAt).toBe('2026-08-23T07:00:00Z');
+            expect(result[1].createdAt).toBe('2026-08-23T11:30:00+02:00');
+        });
+
+        it('send passes through a createdAt timestamp from the wire JSON', async () => {
+            const wire = JSON.stringify({
+                id: '123',
+                state: ProcessState.Pending,
+                recipients: [],
+                createdAt: '2026-08-23T10:00:00+03:00',
+            });
+
+            (mockHttpClient.post as jest.Mock).mockResolvedValue(JSON.parse(wire));
+
+            const result = await client.send({
+                message: 'Hello',
+                phoneNumbers: ['+1234567890'],
+            });
+
+            expect(result.createdAt).toBe('2026-08-23T10:00:00+03:00');
+        });
+
+        it('handles message state without a createdAt field', async () => {
+            const wire = JSON.stringify({
+                id: '123',
+                state: ProcessState.Pending,
+                recipients: [],
+            });
+
+            (mockHttpClient.get as jest.Mock).mockResolvedValue(JSON.parse(wire));
+
+            const result = await client.getState('123');
+
+            expect(result.createdAt).toBeUndefined();
+        });
+    });
+
     it('gets webhooks', async () => {
         const expectedWebhooks: WebHook[] = [
             { id: '1', url: 'https://example.com/webhook1', event: WebHookEventType.SmsReceived, deviceId: null },
