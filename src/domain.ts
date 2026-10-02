@@ -38,6 +38,11 @@ export interface MessageState {
     id: string;
 
     /**
+     * The timestamp when the message was created (RFC 3339).
+     */
+    createdAt?: string;
+
+    /**
      * The state of the message.
      */
     state: ProcessState;
