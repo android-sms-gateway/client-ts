@@ -433,6 +433,11 @@ export interface Device {
      * Absent or null for devices without E2E keys.
      */
     keyVersion?: number | null;
+
+    /**
+     * The state of the device. Absent on servers that do not report it.
+     */
+    state?: DeviceState;
 }
 
 /**
@@ -587,6 +592,14 @@ export enum SimSelectionMode {
     OSDefault = "OSDefault",
     RoundRobin = "RoundRobin",
     Random = "Random",
+}
+
+/**
+ * Represents the state of a registered device.
+ */
+export enum DeviceState {
+    Active = "Active",
+    Disabled = "Disabled",
 }
 
 /**
